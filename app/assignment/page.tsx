@@ -171,8 +171,8 @@ export default async function AssignmentPage() {
                 Spotify Music Graph in Neo4j
               </h2>
               <p className="text-[#CBD5E1] leading-relaxed max-w-2xl">
-                Clean a real Kaggle Spotify dataset, transform it into graph-ready CSVs,
-                import into Neo4j, and solve seven Cypher tasks with reliable timing.
+                We cleaned a real Kaggle Spotify dataset, transformed it into graph-ready CSVs,
+                imported into Neo4j, and solved seven Cypher tasks with reliable timing.
                 Every step below is interactive —{" "}
                 <strong className="text-[#F8FAFC]">Python runs locally</strong> on this machine,
                 and <strong className="text-[#F8FAFC]">read-only Cypher runs against
@@ -203,25 +203,25 @@ export default async function AssignmentPage() {
           {/* Overview */}
           <Section
             id="overview"
-            kicker="Start here"
-            title="What this assignment is asking you to build"
+            kicker="Our approach"
+            title="How we built it"
             icon={BookOpen}
           >
             <p className="text-[#CBD5E1] leading-relaxed">
-              Build a Spotify-style music graph in Neo4j from a real Kaggle dataset
-              (not Faker-generated data). Use Python + pandas to clean the data,
-              export CSV files for nodes and relationships, import them into Neo4j,
-              then solve seven timed Cypher query tasks.
+              We built a Spotify-style music graph in Neo4j from a real Kaggle dataset
+              (not Faker-generated data). We used Python + pandas to clean the data,
+              exported CSV files for nodes and relationships, imported them into Neo4j,
+              then solved seven timed Cypher query tasks.
             </p>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 pt-2">
               {[
-                { n: 1, t: "Download dataset", d: "Get dataset.csv from Kaggle." },
-                { n: 2, t: "Clean with pandas", d: "Drop nulls; normalize artists." },
-                { n: 3, t: "Generate CSVs", d: "4 node + 3 relationship files." },
-                { n: 4, t: "Import to Neo4j", d: "Constraints + LOAD CSV commands." },
-                { n: 5, t: "Write Cypher tasks", d: "Seven read/write queries." },
-                { n: 6, t: "Time & submit", d: "10 runs × 7 tasks, report averages." },
+                { n: 1, t: "Downloaded the dataset", d: "Got dataset.csv from Kaggle." },
+                { n: 2, t: "Cleaned with pandas", d: "Dropped nulls; normalized artists." },
+                { n: 3, t: "Generated CSVs", d: "4 node + 3 relationship files." },
+                { n: 4, t: "Imported to Neo4j", d: "Used constraints + LOAD CSV commands." },
+                { n: 5, t: "Wrote Cypher tasks", d: "Seven read/write queries." },
+                { n: 6, t: "Timed & submitted", d: "10 runs × 7 tasks, reported averages." },
               ].map((s) => (
                 <div
                   key={s.n}
@@ -240,7 +240,7 @@ export default async function AssignmentPage() {
           </Section>
 
           {/* Exact names */}
-          <Section id="names" kicker="Exact names" title="Use these names exactly" icon={Tag}>
+          <Section id="names" kicker="Exact names" title="Names we used" icon={Tag}>
             <div className="rounded-xl border border-[#334155] bg-[#0B1120] overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[480px] text-sm table-fixed">
@@ -260,16 +260,16 @@ export default async function AssignmentPage() {
           <Section
             id="cleaning"
             kicker="Part 1"
-            title="Clean the Kaggle dataset with Python + pandas"
+            title="Cleaning the Kaggle dataset with Python + pandas"
             icon={FileCode2}
           >
             <p className="text-[#CBD5E1] leading-relaxed">
-              We start from{" "}
+              We started from{" "}
               <InlineCode>dataset.csv</InlineCode>{" "}
               (Maharshi Pandya&apos;s Spotify Tracks dataset on Kaggle, ~20 MB),
-              drop rows missing any critical field, normalize the semicolon-separated{" "}
-              <InlineCode>artists</InlineCode> column, and deduplicate by{" "}
-              <InlineCode>track_id</InlineCode>. The cleaned base is then
+              dropped rows missing any critical field, normalized the semicolon-separated{" "}
+              <InlineCode>artists</InlineCode> column, and deduplicated by{" "}
+              <InlineCode>track_id</InlineCode>. The cleaned base was then
               used to generate every node and relationship CSV — guaranteeing
               a consistent graph.
             </p>
@@ -301,11 +301,11 @@ export default async function AssignmentPage() {
           <Section
             id="csvs"
             kicker="Part 2"
-            title="Generated CSV files for nodes and relationships"
+            title="The CSV files we generated"
             icon={FileText}
           >
             <p className="text-[#CBD5E1] leading-relaxed">
-              The cleaning script emits seven CSV files — four for nodes and three for relationships.
+              The cleaning script emitted seven CSV files — four for nodes and three for relationships.
               Click a file to preview the first 25 rows from disk, directly from the copies
               generated by <InlineCode>cleaning.py</InlineCode>.
             </p>
@@ -316,7 +316,7 @@ export default async function AssignmentPage() {
           <Section
             id="import"
             kicker="Part 3"
-            title="Import the CSVs into Neo4j"
+            title="How we imported into Neo4j"
             icon={Database}
           >
             <div className="rounded-lg border border-amber-400/30 bg-amber-400/5 px-4 py-3 text-sm text-amber-100 flex items-start gap-2">
@@ -332,36 +332,36 @@ export default async function AssignmentPage() {
 
             <div className="flex flex-col gap-5">
               <SubCard
-                heading="Step 1 — Optional constraints"
-                summary="Recommended before any LOAD CSV. Helps MERGE match efficiently and prevents duplicate nodes."
+                heading="Constraints first"
+                summary="We added these before any LOAD CSV — they let MERGE match efficiently and prevent duplicate nodes."
               >
                 <CodeCard code={IMPORT_CONSTRAINTS} lang="cypher" label="Cypher" maxHeight={240} />
               </SubCard>
 
               <SubCard
-                heading="Step 2 — Track nodes"
-                summary="Builds every :Track using track_id as the key; attaches popularity, danceability, valence, and acousticness."
+                heading="Loading Track nodes"
+                summary="Built every :Track using track_id as the key; attached popularity, danceability, valence, and acousticness."
               >
                 <CodeCard code={IMPORT_TRACKS} lang="cypher" label="Cypher" maxHeight={240} />
               </SubCard>
 
               <SubCard
-                heading="Step 3 — Artist, Album, Genre nodes"
-                summary="Three separate LOAD CSV blocks — run one at a time in Neo4j Browser."
+                heading="Loading Artist, Album, and Genre nodes"
+                summary="Three separate LOAD CSV blocks, run one at a time in Neo4j Browser."
               >
                 <CodeCard code={IMPORT_NODES} lang="cypher" label="Cypher" maxHeight={320} />
               </SubCard>
 
               <SubCard
-                heading="Step 4 — Relationships"
+                heading="Loading relationships"
                 summary="Three blocks — PERFORMED_BY, BELONGS_TO, HAS_GENRE — matching by the keys already indexed."
               >
                 <CodeCard code={IMPORT_RELS} lang="cypher" label="Cypher" maxHeight={360} />
               </SubCard>
 
               <SubCard
-                heading="Simulated result (what the import produced)"
-                summary="These are the counts currently in the graph, written by the script above."
+                heading="What the import produced"
+                summary="These are the counts currently in the live graph."
               >
                 <div className="rounded-xl border border-[#334155] bg-[#0B1120] overflow-hidden">
                   <table className="w-full text-sm">
@@ -403,13 +403,13 @@ export default async function AssignmentPage() {
           <Section
             id="tasks"
             kicker="Part 4"
-            title="Cypher query tasks"
+            title="The seven Cypher queries we wrote"
             icon={ListChecks}
           >
             <div className="flex flex-col gap-3 text-sm text-[#CBD5E1] leading-relaxed">
               <p>
-                Each of the seven tasks below can be executed live against the Neo4j
-                graph. Tasks 1–4 and 6–7 are read-only, so they run for real.
+                Each of the seven tasks below runs live against the Neo4j graph.
+                Tasks 1–4 and 6–7 are read-only, so they run for real.
                 Task 5 performs a <InlineCode>SET</InlineCode> — we{" "}
                 <strong className="text-amber-300">simulate</strong> it by running the
                 equivalent MATCH and synthesizing the row the update would have returned,
@@ -436,9 +436,9 @@ export default async function AssignmentPage() {
             icon={Timer}
           >
             <p className="text-[#CBD5E1] leading-relaxed">
-              The brief asks for each task to be run <strong>10 times</strong> with{" "}
+              The brief asked for each task to be run <strong>10 times</strong> using{" "}
               <InlineCode>time.perf_counter()</InlineCode>. Our original Python script —{" "}
-              <InlineCode>timing.py</InlineCode> — does exactly that against a local
+              <InlineCode>timing.py</InlineCode> — did exactly that against a local
               Neo4j. The Task cards above run the same measurements from inside this
               browser tab, using the server-side Neo4j driver against the live cloud
               graph. For Task 5, the timed query is the MATCH-only equivalent so nothing

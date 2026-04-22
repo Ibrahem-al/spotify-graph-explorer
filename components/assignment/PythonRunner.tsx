@@ -14,6 +14,7 @@ interface RunResponse {
   usedCommand: string;
   truncated: boolean;
   timedOut: boolean;
+  simulated?: boolean;
   scriptPath?: string;
 }
 
@@ -78,7 +79,9 @@ export function PythonRunner({
         </button>
 
         <span className="text-xs text-[#64748b]">
-          Executes locally on this machine · cloud graph is never touched
+          {data?.simulated
+            ? "Simulated — shows output from our local run"
+            : "Runs cleaning.py · cloud graph is never touched"}
         </span>
       </div>
 
@@ -90,7 +93,7 @@ export function PythonRunner({
 
       <Terminal
         state={state === "running" ? "running" : state === "success" ? "success" : state === "error" ? "error" : "idle"}
-        label={`Output · ${scriptLabel}`}
+        label={data?.simulated ? `Output · ${scriptLabel} · simulated` : `Output · ${scriptLabel}`}
         command={data?.usedCommand || commandPreview}
         stdout={data?.stdout ?? ""}
         stderr={data?.stderr ?? ""}

@@ -8,6 +8,19 @@ export const dynamic = "force-dynamic";
 const MAX_OUTPUT_BYTES = 256_000;
 const TIMEOUT_MS = 120_000;
 
+const SIMULATED_STDOUT = `Raw shape: (113999, 21)
+After dropping nulls: (113999, 21)
+Unique tracks: 89740
+Wrote tracks.csv
+Wrote artists.csv  (30854 artists)
+Wrote albums.csv  (46588 albums)
+Wrote genres.csv  (114 genres)
+Wrote rel_performed_by.csv  (123420 rows)
+Wrote rel_belongs_to.csv  (89740 rows)
+Wrote rel_has_genre.csv  (89740 rows)
+
+All 7 CSV files generated successfully.`;
+
 type PythonAttempt = { cmd: string; args: string[] };
 
 const PYTHON_CANDIDATES: PythonAttempt[] =
@@ -123,6 +136,22 @@ export async function POST() {
   const cwd = process.cwd();
   const scriptPath = path.join(cwd, "cleaning.py");
 
+  if (process.env.VERCEL) {
+    await new Promise((r) => setTimeout(r, 2800));
+    return NextResponse.json({
+      ok: true,
+      stdout: SIMULATED_STDOUT,
+      stderr: "",
+      exitCode: 0,
+      durationMs: 2834,
+      usedCommand: "python cleaning.py",
+      truncated: false,
+      timedOut: false,
+      simulated: true,
+      scriptPath,
+    });
+  }
+
   let lastError = "";
   for (const attempt of PYTHON_CANDIDATES) {
     const res = await runPython(attempt, scriptPath, cwd);
@@ -140,6 +169,7 @@ export async function POST() {
 
     return NextResponse.json({
       ...res,
+      simulated: false,
       scriptPath,
     });
   }
@@ -157,6 +187,7 @@ export async function POST() {
       usedCommand: "",
       truncated: false,
       timedOut: false,
+      simulated: false,
       scriptPath,
     },
     { status: 500 }
