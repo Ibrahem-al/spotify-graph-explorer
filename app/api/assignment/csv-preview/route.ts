@@ -46,7 +46,7 @@ export async function GET(req: Request) {
   } catch {
     return NextResponse.json(
       {
-        error: `${file} not found. Run cleaning.py first to generate the CSV files.`,
+        error: `${file} not found.`,
         file,
         exists: false,
       },

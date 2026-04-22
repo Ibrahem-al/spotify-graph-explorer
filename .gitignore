@@ -34,9 +34,8 @@ yarn-error.log*
 .env*
 !.env.local.example
 
-# CSVs (large data files, kept local)
-*.csv
-!.gitkeep
+# Raw dataset — too large and not needed on Vercel
+dataset.csv
 
 # design system generated pages
 design-system/**/pages/*.md

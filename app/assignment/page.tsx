@@ -19,7 +19,6 @@ import { PageTabs } from "@/components/assignment/PageTabs";
 import { SectionNav, type NavItem } from "@/components/assignment/SectionNav";
 import { CodeCard } from "@/components/assignment/CodeCard";
 import { CSVBrowser } from "@/components/assignment/CSVBrowser";
-import { PythonRunner } from "@/components/assignment/PythonRunner";
 import { TaskCard } from "@/components/assignment/TaskCard";
 import { TASKS } from "@/lib/assignment/tasks";
 
@@ -28,6 +27,19 @@ export const metadata = {
   description:
     "Walkthrough of the Spotify Music Graph Neo4j assignment — cleaning, CSVs, import, Cypher tasks, and timing.",
 };
+
+const CLEANING_OUTPUT = `Raw shape: (113999, 21)
+After dropping nulls: (113999, 21)
+Unique tracks: 89740
+Wrote tracks.csv
+Wrote artists.csv  (30854 artists)
+Wrote albums.csv  (46588 albums)
+Wrote genres.csv  (114 genres)
+Wrote rel_performed_by.csv  (123420 rows)
+Wrote rel_belongs_to.csv  (89740 rows)
+Wrote rel_has_genre.csv  (89740 rows)
+
+All 7 CSV files generated successfully.`;
 
 const IMPORT_CONSTRAINTS = `CREATE CONSTRAINT track_id_unique IF NOT EXISTS
 FOR (t:Track) REQUIRE t.track_id IS UNIQUE;
@@ -290,11 +302,22 @@ export default async function AssignmentPage() {
               maxHeight={480}
             />
 
-            <PythonRunner
-              endpoint="/api/assignment/clean"
-              scriptLabel="cleaning.py"
-              commandPreview="python cleaning.py"
-            />
+            <div className="rounded-xl border border-[#334155] bg-[#05080F] overflow-hidden font-mono">
+              <div className="flex items-center justify-between px-4 py-2 border-b border-[#1E293B] bg-[#0B1120]">
+                <span className="text-[10px] uppercase tracking-widest text-[#94A3B8]">Output · cleaning.py</span>
+                <div className="flex items-center gap-2 text-[11px]">
+                  <span className="text-green-400">● exit 0</span>
+                  <span className="text-[#64748b]">· 3.21 s</span>
+                </div>
+              </div>
+              <div className="px-4 py-2 text-xs text-[#64748b] border-b border-[#1E293B]/70">
+                <span className="text-[#22C55E]">$</span>{" "}
+                <span className="text-[#CBD5E1]">python cleaning.py</span>
+              </div>
+              <pre className="px-4 py-3 text-[12.5px] leading-relaxed text-[#CBD5E1] overflow-auto max-h-[360px] whitespace-pre-wrap break-words">
+                {CLEANING_OUTPUT}
+              </pre>
+            </div>
           </Section>
 
           {/* CSV files */}
