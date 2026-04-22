@@ -38,7 +38,7 @@ export async function GET(req: Request) {
     );
   }
 
-  const filePath = path.join(/*turbopackIgnore: true*/ process.cwd(), file);
+  const filePath = path.join(process.cwd(), "public", "csvs", file);
 
   let stat;
   try {
