@@ -1,0 +1,1021 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Spotify Music Graph in Neo4j</title>
+  <link
+    href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+    rel="stylesheet"
+    crossorigin="anonymous"
+  >
+  <style>
+  
+:root{
+  --page-bg1: #eef4fb;
+  --page-bg2: #f8fbff;
+  --panel: #ffffff;
+  --ink: #162235;
+  --muted: #5b6776;
+  --line: #dbe4ef;
+  --hero-1: #1e3a8a;
+  --hero-2: #2563eb;
+  --hero-3: #60a5fa;
+  --primary: #1d4ed8;
+  --primary-soft: #e9f1ff;
+  --success: #0f766e;
+  --success-soft: #eafaf8;
+  --warning: #b45309;
+  --warning-soft: #fff6e7;
+  --danger: #b91c1c;
+  --danger-soft: #fdecec;
+  --violet: #7c3aed;
+  --violet-soft: #f4edff;
+  --shadow: 0 20px 46px rgba(15, 23, 42, 0.09);
+  --radius: 22px;
+}
+html, body{
+  margin: 0;
+  padding: 0;
+  background: linear-gradient(180deg, var(--page-bg1) 0%, var(--page-bg2) 100%);
+  color: var(--ink);
+  font-family: Inter, "Segoe UI", Roboto, Arial, sans-serif;
+  line-height: 1.68;
+}
+.page-wrap{
+  max-width: 1220px;
+  margin: 28px auto 42px;
+  padding: 0 18px;
+}
+.assignment-shell{
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 30px;
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+.hero{
+  background:
+    radial-gradient(circle at top right, rgba(255,255,255,0.18), transparent 28%),
+    linear-gradient(135deg, var(--hero-1) 0%, var(--hero-2) 54%, var(--hero-3) 100%);
+  color: #fff;
+  padding: 44px 44px 30px;
+  border-bottom: 1px solid rgba(255,255,255,0.12);
+}
+.hero h1{
+  margin: 0 0 10px;
+  font-size: clamp(2rem, 4vw, 2.9rem);
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  font-weight: 850;
+}
+.hero p{
+  margin: 0;
+  max-width: 980px;
+  font-size: 1.05rem;
+  opacity: 0.97;
+}
+.hero-grid{
+  display: grid;
+  grid-template-columns: 1.6fr 1fr;
+  gap: 20px;
+  align-items: end;
+}
+.chip-row{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 18px;
+}
+.chip{
+  background: rgba(255,255,255,0.14);
+  border: 1px solid rgba(255,255,255,0.22);
+  color: #fff;
+  font-size: 0.92rem;
+  font-weight: 700;
+  padding: 8px 14px;
+  border-radius: 999px;
+}
+.hero-note{
+  background: rgba(255,255,255,0.13);
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 18px;
+  padding: 16px 18px;
+}
+.hero-note .label{
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  opacity: 0.88;
+  font-weight: 800;
+  margin-bottom: 8px;
+}
+.hero-note .value{
+  font-size: 1rem;
+  font-weight: 700;
+}
+.body-pad{
+  padding: 34px 34px 22px;
+}
+.toc{
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: #f8fbff;
+  padding: 18px 20px;
+  margin-bottom: 24px;
+}
+.toc-title{
+  font-size: 0.98rem;
+  font-weight: 850;
+  color: var(--primary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 12px;
+}
+.toc a{
+  display: inline-block;
+  margin: 5px 16px 5px 0;
+  color: var(--ink);
+  text-decoration: none;
+  font-weight: 700;
+}
+.toc a:hover{
+  color: var(--primary);
+}
+.section-card{
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 28px;
+  background: #fff;
+  margin-bottom: 24px;
+}
+.section-head{
+  margin-bottom: 16px;
+}
+.section-kicker{
+  color: var(--primary);
+  font-size: 0.84rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 850;
+  margin-bottom: 8px;
+}
+.section-title{
+  margin: 0;
+  font-size: 1.6rem;
+  font-weight: 850;
+  letter-spacing: -0.02em;
+}
+.section-body p{
+  margin: 0 0 12px;
+}
+.grid-2, .grid-3{
+  display: grid;
+  gap: 16px;
+}
+.grid-2{ grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.grid-3{ grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.mini-card{
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 18px;
+  background: #fff;
+}
+.mini-card .mini-title{
+  font-weight: 800;
+  margin-bottom: 8px;
+  color: var(--primary);
+}
+.callout{
+  border-radius: 18px;
+  padding: 16px 18px;
+  border: 1px solid var(--line);
+  margin: 14px 0 16px;
+}
+.callout-title{
+  font-weight: 850;
+  margin-bottom: 8px;
+}
+.callout.info{
+  background: var(--primary-soft);
+  border-color: #cfe0ff;
+}
+.callout.success{
+  background: var(--success-soft);
+  border-color: #cceee9;
+}
+.callout.warn{
+  background: var(--warning-soft);
+  border-color: #f1d7aa;
+}
+.callout.danger{
+  background: var(--danger-soft);
+  border-color: #f4c4c4;
+}
+.callout.violet{
+  background: var(--violet-soft);
+  border-color: #ddcffd;
+}
+.rule-table, .deliverable-table{
+  width: 100%;
+  border-collapse: collapse;
+  margin: 10px 0 4px;
+}
+.rule-table th, .rule-table td,
+.deliverable-table th, .deliverable-table td{
+  border: 1px solid var(--line);
+  padding: 12px 14px;
+  vertical-align: top;
+}
+.rule-table th, .deliverable-table th{
+  background: #f8fbff;
+  width: 28%;
+  text-align: left;
+}
+.code-block{
+  position: relative;
+  border: 1px solid #dbe4ef;
+  border-radius: 18px;
+  background: #0f172a;
+  color: #e5eefb;
+  margin: 14px 0 18px;
+  overflow: hidden;
+}
+.code-label{
+  background: rgba(255,255,255,0.06);
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+  padding: 10px 14px;
+  font-size: 0.82rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-weight: 800;
+  color: #9ec5ff;
+}
+.code-block pre{
+  margin: 0;
+  padding: 16px 18px 18px;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 0.95rem;
+  line-height: 1.55;
+}
+.inline{
+  background: #eef4ff;
+  border: 1px solid #dbe7ff;
+  border-radius: 8px;
+  padding: 1px 6px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.93em;
+}
+.task-grid{
+  display: grid;
+  gap: 16px;
+}
+.task-card{
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 18px 18px 16px;
+  background: #fff;
+}
+.task-head{
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+.task-num{
+  background: var(--primary-soft);
+  color: var(--primary);
+  border: 1px solid #d5e3ff;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 850;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.task-title{
+  margin: 0;
+  font-size: 1.14rem;
+  font-weight: 800;
+}
+.task-body p{
+  margin: 0 0 8px;
+}
+.task-body ul{
+  margin: 8px 0 0 18px;
+}
+.task-body li + li{
+  margin-top: 4px;
+}
+.badge-row{
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+.note-badge{
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  border: 1px solid var(--line);
+  background: #f8fbff;
+}
+.step-grid{
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 12px;
+}
+.step-card{
+  border: 1px solid var(--line);
+  background: #fff;
+  border-radius: 18px;
+  padding: 14px 14px 12px;
+}
+.step-card .step-num{
+  display: inline-flex;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  align-items: center;
+  justify-content: center;
+  font-weight: 850;
+  color: #fff;
+  background: var(--primary);
+  margin-bottom: 10px;
+}
+.step-card .step-title{
+  font-weight: 800;
+  margin-bottom: 6px;
+}
+.footer{
+  padding: 0 34px 34px;
+}
+.footer-note{
+  border: 1px solid var(--line);
+  background: #f8fbff;
+  border-radius: 18px;
+  padding: 16px 18px;
+  color: var(--muted);
+}
+.small{
+  font-size: 0.94rem;
+  color: var(--muted);
+}
+.checklist{
+  margin: 10px 0 0 0;
+  padding-left: 0;
+  list-style: none;
+}
+.checklist li{
+  position: relative;
+  padding-left: 28px;
+  margin-bottom: 8px;
+}
+.checklist li::before{
+  content: "✓";
+  position: absolute;
+  left: 0;
+  top: 0;
+  color: var(--success);
+  font-weight: 900;
+}
+@media (max-width: 1100px){
+  .hero-grid, .grid-2, .grid-3, .step-grid{
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 720px){
+  .hero, .body-pad, .footer{
+    padding-left: 18px;
+    padding-right: 18px;
+  }
+  .section-card{
+    padding: 18px;
+  }
+}
+@media print{
+  body{
+    background: #fff;
+  }
+  .page-wrap{
+    margin: 0;
+    padding: 0;
+    max-width: none;
+  }
+  .assignment-shell{
+    box-shadow: none;
+    border: none;
+    border-radius: 0;
+  }
+  .section-card, .toc, .hero-note, .callout, .mini-card, .task-card, .step-card{
+    break-inside: avoid;
+  }
+}
+
+  
+:root{
+  --page-bg1: #eef8f2;
+  --page-bg2: #fbfefc;
+  --hero-1: #08130d;
+  --hero-2: #12833b;
+  --hero-3: #1ed760;
+  --primary: #12833b;
+  --primary-soft: #ecfbf1;
+}
+
+  </style>
+</head>
+<body>
+  <div class="page-wrap">
+    <div class="assignment-shell">
+      <header class="hero">
+        <div class="hero-grid">
+          <div>
+            <h1>Spotify Music Graph in Neo4j</h1>
+            <p>Clean a real Kaggle dataset, transform it into graph-ready CSV files, import it into Neo4j, and solve Cypher tasks with reliable timing.</p>
+            <div class="chip-row">
+              <span class="chip">Option 3</span><span class="chip">Neo4j graph</span><span class="chip">Python + pandas</span><span class="chip">Kaggle dataset</span><span class="chip">20,000+ cleaned rows</span><span class="chip">7 timed tasks</span>
+            </div>
+          </div>
+          <div class="hero-note">
+            <div class="label">Best way to approach it</div>
+            <div class="value">Clean and normalize the raw dataset first, build all CSVs from one consistent track base, then import the graph and solve the tasks.</div>
+          </div>
+        </div>
+      </header>
+
+      <main class="body-pad">
+        <nav class="toc">
+          <div class="toc-title">Jump to</div>
+          <a href="#overview">Overview</a>
+<a href="#names">Exact names</a>
+<a href="#cleaning">Cleaning</a>
+<a href="#csvs">CSV files</a>
+<a href="#import">Neo4j import</a>
+<a href="#tasks">Tasks</a>
+<a href="#timing">Timing</a>
+<a href="#deliverables">Deliverables</a>
+        </nav>
+
+        
+    <section id="overview" class="section-card">
+      <div class="section-head">
+        <div class="section-kicker">Start here</div>
+        <h2 class="section-title">What this assignment is asking you to build</h2>
+      </div>
+      <div class="section-body">
+        
+    <p>You are building a <strong>Spotify-style music graph in Neo4j</strong> using a real Kaggle dataset, not Faker-generated music data.</p>
+    <p>You will clean the dataset with <strong>Python + pandas</strong>, export CSV files for nodes and relationships, import them into Neo4j, then solve timed Cypher query tasks.</p>
+    
+    <div class="callout info">
+      <div class="callout-title">Recommended work order</div>
+      <div class="callout-body">
+      <div class="step-grid">
+        <div class="step-card"><div class="step-num">1</div><div class="step-title">Download the dataset</div><div class="small">Get <code class="inline">dataset.csv</code> from Kaggle and place it in your working directory.</div></div>
+        <div class="step-card"><div class="step-num">2</div><div class="step-title">Clean the data</div><div class="small">Use pandas to drop rows with missing critical fields and normalize artist strings.</div></div>
+        <div class="step-card"><div class="step-num">3</div><div class="step-title">Create CSV files</div><div class="small">Generate node CSVs and relationship CSVs from the same cleaned track base.</div></div>
+        <div class="step-card"><div class="step-num">4</div><div class="step-title">Import to Neo4j</div><div class="small">Copy the CSVs into Neo4j’s <code class="inline">import/</code> folder and run the Cypher import commands.</div></div>
+        <div class="step-card"><div class="step-num">5</div><div class="step-title">Solve the Cypher tasks</div><div class="small">Write and test the 7 required Cypher tasks.</div></div>
+        <div class="step-card"><div class="step-num">6</div><div class="step-title">Time and submit</div><div class="small">Run each task 10 times, compute averages, and package the deliverables.</div></div>
+      </div>
+    </div>
+    </div>
+    
+    
+    <div class="callout violet">
+      <div class="callout-title">Reference note about Assignment 2 code</div>
+      <div class="callout-body"><p>If you want a reference for how to structure Python scripts, helper functions, loops, or timing code, you may look at the <strong>Python code style from Assignment 2</strong>. However, for this assignment the actual data source must be the Kaggle Spotify dataset, <strong>not Faker</strong>.</p></div>
+    </div>
+    
+    
+      </div>
+    </section>
+    
+
+    <section id="names" class="section-card">
+      <div class="section-head">
+        <div class="section-kicker">Exact names</div>
+        <h2 class="section-title">Use these names exactly</h2>
+      </div>
+      <div class="section-body">
+        
+    <table class="rule-table">
+      <tr><th>Database rule</th><td>Preferred name: <code class="inline">spotifydb</code>. If your Neo4j setup lets you create or choose a separate database, use <code class="inline">spotifydb</code>. If your setup only gives you the default database, use that database instead and keep all labels, relationship types, CSV file names, and tasks exactly the same.</td></tr>
+      <tr><th>Node labels</th><td><code class="inline">:Track</code>, <code class="inline">:Artist</code>, <code class="inline">:Album</code>, <code class="inline">:Genre</code></td></tr>
+      <tr><th>Relationship types</th><td><code class="inline">:PERFORMED_BY</code>, <code class="inline">:BELONGS_TO</code>, <code class="inline">:HAS_GENRE</code></td></tr>
+      <tr><th>CSV file names</th><td><code class="inline">tracks.csv</code>, <code class="inline">artists.csv</code>, <code class="inline">albums.csv</code>, <code class="inline">genres.csv</code>, <code class="inline">rel_performed_by.csv</code>, <code class="inline">rel_belongs_to.csv</code>, <code class="inline">rel_has_genre.csv</code></td></tr>
+      <tr><th>ZIP file name</th><td><code class="inline">group#_Option#_Project_Section11.zip</code></td></tr>
+    </table>
+    
+    <div class="callout info">
+      <div class="callout-title">Environment note for Neo4j setup</div>
+      <div class="callout-body"><p>These instructions assume Neo4j Desktop or another local/self-managed Neo4j setup where <code class='inline'>LOAD CSV</code> can read files from the local <code class='inline'>import/</code> directory. If your course setup only gives you the default database, use that database. If your course setup uses a different CSV upload/import method, keep the same labels, relationships, CSV files, and tasks, but follow your course environment for the upload step.</p></div>
+    </div>
+
+    <div class="callout warn">
+      <div class="callout-title">Modeling simplification you are allowed to use</div>
+      <div class="callout-body"><p>In this project, album nodes are identified only by <code class='inline'>album_name</code>. That means two real albums with the same name would merge into one <code class='inline'>:Album</code> node. This is acceptable for this course project.</p></div>
+    </div>
+    
+    
+      </div>
+    </section>
+    
+
+    <section id="cleaning" class="section-card">
+      <div class="section-head">
+        <div class="section-kicker">Part 1</div>
+        <h2 class="section-title">Clean the Kaggle dataset with Python and pandas</h2>
+      </div>
+      <div class="section-body">
+        
+    <p>Dataset link:</p>
+    <p><code class="inline">https://www.kaggle.com/datasets/maharshipandya/-spotify-tracks-dataset?resource=download&amp;select=dataset.csv</code></p>
+    <p>Download <code class="inline">dataset.csv</code> and place it in your working directory.</p>
+    
+    <div class="code-block">
+      <div class="code-label">Basic cleaning step</div>
+      <pre><code>import pandas as pd
+
+df = pd.read_csv(&quot;dataset.csv&quot;)
+
+critical_cols = [
+    &quot;track_id&quot;,
+    &quot;track_name&quot;,
+    &quot;artists&quot;,
+    &quot;album_name&quot;,
+    &quot;track_genre&quot;,
+    &quot;popularity&quot;,
+    &quot;danceability&quot;,
+    &quot;energy&quot;,
+    &quot;acousticness&quot;,
+    &quot;valence&quot;,
+    &quot;tempo&quot;
+]
+
+df = df.dropna(subset=critical_cols).copy()
+
+print(df.shape)
+print(df.head())</code></pre>
+    </div>
+    
+    <table class="rule-table">
+      <tr><th>Minimum cleaned size</th><td>After cleaning, keep at least <strong>20,000 rows</strong>.</td></tr>
+      <tr><th>No maximum size</th><td>You may keep all rows that remain after cleaning.</td></tr>
+      <tr><th>Artist separator rule</th><td>Treat the cleaned <code class="inline">artists</code> field as <strong>semicolon-separated</strong> before you split it into multiple artist names.</td></tr>
+      <tr><th>Blank names rule</th><td>Trim whitespace and remove empty artist names after splitting.</td></tr>
+      <tr><th>Energy and tempo rule</th><td><code class="inline">energy</code> and <code class="inline">tempo</code> are included in the cleaning step to help you keep high-quality rows, but you do <strong>not</strong> need to export or import them for this assignment unless you want to.</td></tr>
+    </table>
+    
+    <div class="code-block">
+      <div class="code-label">Recommended artist normalization step</div>
+      <pre><code># Normalize the artists field before splitting
+# If your raw file already uses semicolons, this is simple.
+# If your raw file uses another separator, convert it to semicolons first.
+
+df[&quot;artists&quot;] = df[&quot;artists&quot;].astype(str).str.strip()
+
+def normalize_artists(value):
+    parts = [p.strip() for p in value.split(&quot;;&quot;)]
+    parts = [p for p in parts if p]   # remove blanks
+    return &quot;;&quot;.join(parts)
+
+df[&quot;artists&quot;] = df[&quot;artists&quot;].apply(normalize_artists)</code></pre>
+    </div>
+    
+    
+    <div class="callout success">
+      <div class="callout-title">Very important consistency rule</div>
+      <div class="callout-body"><p>Build all node and relationship CSV files from the <strong>same cleaned, deduplicated track base</strong> so your graph stays consistent.</p></div>
+    </div>
+
+    <div class="callout warn">
+      <div class="callout-title">Accepted simplification for this course project</div>
+      <div class="callout-body"><p>The raw Spotify dataset can contain the same track under more than one genre. In this assignment, keeping one row per <code class="inline">track_id</code> and therefore one chosen genre per track is acceptable, as long as you use that same cleaned track base consistently for all CSV files.</p></div>
+    </div>
+    
+    
+      </div>
+    </section>
+    
+
+    <section id="csvs" class="section-card">
+      <div class="section-head">
+        <div class="section-kicker">Part 2</div>
+        <h2 class="section-title">Generate CSV files for nodes and relationships</h2>
+      </div>
+      <div class="section-body">
+        
+    <p>Create the CSV files below from the cleaned data.</p>
+    <div class="grid-2">
+      <div class="mini-card">
+        <div class="mini-title">Node CSVs</div>
+        
+    <div class="code-block">
+      <div class="code-label">tracks.csv</div>
+      <pre><code>df_tracks = df[[
+    &quot;track_id&quot;,
+    &quot;track_name&quot;,
+    &quot;popularity&quot;,
+    &quot;danceability&quot;,
+    &quot;valence&quot;,
+    &quot;acousticness&quot;,
+    &quot;album_name&quot;,
+    &quot;track_genre&quot;,
+    &quot;artists&quot;
+]].drop_duplicates(subset=[&quot;track_id&quot;]).copy()
+
+df_tracks.to_csv(&quot;tracks.csv&quot;, index=False)</code></pre>
+    </div>
+    
+        
+    <div class="code-block">
+      <div class="code-label">artists.csv</div>
+      <pre><code>df_tracks[&quot;artist_list&quot;] = df_tracks[&quot;artists&quot;].astype(str).str.split(&quot;;&quot;)
+
+rows = []
+for sublist in df_tracks[&quot;artist_list&quot;]:
+    for artist in sublist:
+        artist = artist.strip()
+        if artist:
+            rows.append(artist)
+
+df_artists = pd.DataFrame(sorted(set(rows)), columns=[&quot;name&quot;])
+df_artists.to_csv(&quot;artists.csv&quot;, index=False)</code></pre>
+    </div>
+    
+        
+    <div class="code-block">
+      <div class="code-label">albums.csv and genres.csv</div>
+      <pre><code>df_albums = df_tracks[[&quot;album_name&quot;]].drop_duplicates().copy()
+df_albums[&quot;album_name&quot;] = df_albums[&quot;album_name&quot;].astype(str).str.strip()
+df_albums = df_albums[df_albums[&quot;album_name&quot;] != &quot;&quot;]
+df_albums.rename(columns={&quot;album_name&quot;: &quot;name&quot;}, inplace=True)
+df_albums.to_csv(&quot;albums.csv&quot;, index=False)
+
+df_genres = df_tracks[[&quot;track_genre&quot;]].drop_duplicates().copy()
+df_genres[&quot;track_genre&quot;] = df_genres[&quot;track_genre&quot;].astype(str).str.strip()
+df_genres = df_genres[df_genres[&quot;track_genre&quot;] != &quot;&quot;]
+df_genres.rename(columns={&quot;track_genre&quot;: &quot;name&quot;}, inplace=True)
+df_genres.to_csv(&quot;genres.csv&quot;, index=False)</code></pre>
+    </div>
+    
+      </div>
+      <div class="mini-card">
+        <div class="mini-title">Relationship CSVs</div>
+        
+    <div class="code-block">
+      <div class="code-label">Relationship CSV files</div>
+      <pre><code># rel_performed_by.csv
+rows = []
+for _, row in df_tracks.iterrows():
+    for artist in row[&quot;artist_list&quot;]:
+        artist = artist.strip()
+        if artist:
+            rows.append({
+                &quot;track_id&quot;: row[&quot;track_id&quot;],
+                &quot;artist_name&quot;: artist
+            })
+
+df_performed_by = pd.DataFrame(rows).drop_duplicates()
+df_performed_by.to_csv(&quot;rel_performed_by.csv&quot;, index=False)
+
+# rel_belongs_to.csv
+df_belongs_to = df_tracks[[&quot;track_id&quot;, &quot;album_name&quot;]].drop_duplicates().copy()
+df_belongs_to[&quot;album_name&quot;] = df_belongs_to[&quot;album_name&quot;].astype(str).str.strip()
+df_belongs_to = df_belongs_to[df_belongs_to[&quot;album_name&quot;] != &quot;&quot;]
+df_belongs_to.to_csv(&quot;rel_belongs_to.csv&quot;, index=False)
+
+# rel_has_genre.csv
+df_has_genre = df_tracks[[&quot;track_id&quot;, &quot;track_genre&quot;]].drop_duplicates().copy()
+df_has_genre[&quot;track_genre&quot;] = df_has_genre[&quot;track_genre&quot;].astype(str).str.strip()
+df_has_genre = df_has_genre[df_has_genre[&quot;track_genre&quot;] != &quot;&quot;]
+df_has_genre.to_csv(&quot;rel_has_genre.csv&quot;, index=False)</code></pre>
+    </div>
+    
+      </div>
+    </div>
+    
+    <div class="callout info">
+      <div class="callout-title">Why this structure matters</div>
+      <div class="callout-body"><p>Using separate CSV files for nodes and relationships makes the Neo4j import cleaner and helps you avoid duplicate nodes.</p></div>
+    </div>
+    
+    
+      </div>
+    </section>
+    
+
+    <section id="import" class="section-card">
+      <div class="section-head">
+        <div class="section-kicker">Part 3</div>
+        <h2 class="section-title">Import the CSV files into Neo4j</h2>
+      </div>
+      <div class="section-body">
+        
+    <p>Copy all CSV files into Neo4j’s <code class="inline">import/</code> directory, then run the Cypher import commands.</p>
+
+    <div class="callout info">
+      <div class="callout-title">Before you start the import</div>
+      <div class="callout-body"><p>Open the database you are actually using first. Use <code class='inline'>spotifydb</code> if your environment supports a separate database for this assignment. If your environment only gives you the default database, open that database instead and run the same import commands there.</p></div>
+    </div>
+    
+    <div class="callout success">
+      <div class="callout-title">Optional but recommended first step</div>
+      <div class="callout-body"><p>Create uniqueness constraints before you import. This helps Neo4j match nodes more efficiently and helps prevent accidental duplicates. If your Neo4j version does not support the exact optional constraint syntax shown here, you may skip this optional step and continue with the imports.</p></div>
+    </div>
+    
+    
+    <div class="code-block">
+      <div class="code-label">Optional but recommended constraints before import</div>
+      <pre><code>CREATE CONSTRAINT track_id_unique IF NOT EXISTS
+FOR (t:Track) REQUIRE t.track_id IS UNIQUE;
+
+CREATE CONSTRAINT artist_name_unique IF NOT EXISTS
+FOR (a:Artist) REQUIRE a.name IS UNIQUE;
+
+CREATE CONSTRAINT album_name_unique IF NOT EXISTS
+FOR (al:Album) REQUIRE al.name IS UNIQUE;
+
+CREATE CONSTRAINT genre_name_unique IF NOT EXISTS
+FOR (g:Genre) REQUIRE g.name IS UNIQUE;</code></pre>
+    </div>
+    
+    
+    <div class="callout info">
+      <div class="callout-title">Run the import blocks one at a time</div>
+      <div class="callout-body"><p>In Neo4j Browser or Neo4j Desktop, run each query separately in this order: constraints, Track nodes, Artist nodes, Album nodes, Genre nodes, then the three relationship imports. Do <strong>not</strong> assume your interface will run every query in a combined example at once. Execute the Artist import, Album import, and Genre import as three separate runs. Do the same for the three relationship imports.</p></div>
+    </div>
+
+    <div class="code-block">
+      <div class="code-label">Create Track nodes</div>
+      <pre><code>LOAD CSV WITH HEADERS FROM &#x27;file:///tracks.csv&#x27; AS row
+WITH row
+WHERE row.track_id IS NOT NULL AND trim(row.track_id) &lt;&gt; &quot;&quot;
+
+MERGE (t:Track {track_id: row.track_id})
+SET t.track_name   = row.track_name,
+    t.popularity   = toInteger(row.popularity),
+    t.danceability = toFloat(row.danceability),
+    t.valence      = toFloat(row.valence),
+    t.acousticness = toFloat(row.acousticness);</code></pre>
+    </div>
+    
+    
+    <div class="code-block">
+      <div class="code-label">Create Artist, Album, and Genre nodes</div>
+      <pre><code>// Artists
+LOAD CSV WITH HEADERS FROM &#x27;file:///artists.csv&#x27; AS row
+WITH row
+WHERE row.name IS NOT NULL AND trim(row.name) &lt;&gt; &quot;&quot;
+MERGE (:Artist {name: trim(row.name)});
+
+// Albums
+LOAD CSV WITH HEADERS FROM &#x27;file:///albums.csv&#x27; AS row
+WITH row
+WHERE row.name IS NOT NULL AND trim(row.name) &lt;&gt; &quot;&quot;
+MERGE (:Album {name: trim(row.name)});
+
+// Genres
+LOAD CSV WITH HEADERS FROM &#x27;file:///genres.csv&#x27; AS row
+WITH row
+WHERE row.name IS NOT NULL AND trim(row.name) &lt;&gt; &quot;&quot;
+MERGE (:Genre {name: trim(row.name)});</code></pre>
+    </div>
+    
+    
+    <div class="code-block">
+      <div class="code-label">Create relationships</div>
+      <pre><code>// PERFORMED_BY
+LOAD CSV WITH HEADERS FROM &#x27;file:///rel_performed_by.csv&#x27; AS row
+WITH row
+WHERE row.track_id IS NOT NULL AND trim(row.track_id) &lt;&gt; &quot;&quot;
+  AND row.artist_name IS NOT NULL AND trim(row.artist_name) &lt;&gt; &quot;&quot;
+MATCH (t:Track {track_id: row.track_id})
+MATCH (a:Artist {name: trim(row.artist_name)})
+MERGE (t)-[:PERFORMED_BY]-&gt;(a);
+
+// BELONGS_TO
+LOAD CSV WITH HEADERS FROM &#x27;file:///rel_belongs_to.csv&#x27; AS row
+WITH row
+WHERE row.track_id IS NOT NULL AND trim(row.track_id) &lt;&gt; &quot;&quot;
+  AND row.album_name IS NOT NULL AND trim(row.album_name) &lt;&gt; &quot;&quot;
+MATCH (t:Track {track_id: row.track_id})
+MATCH (al:Album {name: trim(row.album_name)})
+MERGE (t)-[:BELONGS_TO]-&gt;(al);
+
+// HAS_GENRE
+LOAD CSV WITH HEADERS FROM &#x27;file:///rel_has_genre.csv&#x27; AS row
+WITH row
+WHERE row.track_id IS NOT NULL AND trim(row.track_id) &lt;&gt; &quot;&quot;
+  AND row.track_genre IS NOT NULL AND trim(row.track_genre) &lt;&gt; &quot;&quot;
+MATCH (t:Track {track_id: row.track_id})
+MATCH (g:Genre {name: trim(row.track_genre)})
+MERGE (t)-[:HAS_GENRE]-&gt;(g);</code></pre>
+    </div>
+    
+    
+    <div class="callout warn">
+      <div class="callout-title">Do not leave placeholders</div>
+      <div class="callout-body"><p>Your final submission should contain the <strong>full Cypher commands</strong>, not lines like <code class='inline'>....</code> or “fill this part yourself”.</p></div>
+    </div>
+    
+    
+      </div>
+    </section>
+    
+
+    <section id="tasks" class="section-card">
+      <div class="section-head">
+        <div class="section-kicker">Part 4</div>
+        <h2 class="section-title">Cypher query tasks with exact clarifications</h2>
+      </div>
+      <div class="section-body">
+        
+    <p>For each task, write the Cypher query, make sure it works on your data, and measure the execution time.</p>
+    <div class="task-grid">
+      
+    <article class="task-card">
+      <div class="task-head">
+        <div class="task-num">Task 1</div>
+        <h3 class="task-title">Highly popular tracks</h3>
+      </div>
+      <div class="task-body"><ul><li>Return the top 20 tracks with <code class='inline'>popularity &gt; 80</code>.</li><li>Return <code class='inline'>track_name</code> and <code class='inline'>popularity</code>.</li><li>Sort by popularity descending and use <code class='inline'>LIMIT 20</code>.</li></ul></div>
+    </article>
+    
+      
+    <article class="task-card">
+      <div class="task-head">
+        <div class="task-num">Task 2</div>
+        <h3 class="task-title">Tracks with “Love” or “Dream” in the title</h3>
+      </div>
+      <div class="task-body"><ul><li>Find up to 50 tracks whose title contains <code class='inline'>love</code> or <code class='inline'>dream</code>, case-insensitive.</li><li>Using <code class='inline'>toLower(t.track_name)</code> is a good approach.</li><li>Return <code class='inline'>track_name</code> and <code class='inline'>popularity</code>, sorted by popularity descending.</li></ul></div>
+    </article>
+    
+      
+    <article class="task-card">
+      <div class="task-head">
+        <div class="task-num">Task 3</div>
+        <h3 class="task-title">Tracks by a specific artist</h3>
+      </div>
+      <div class="task-body"><ul><li>Choose an artist name that exists in your data. <code class='inline'>Taylor Swift</code> is only an example.</li><li>Use the <code class='inline'>PERFORMED_BY</code> relationship.</li><li>Return <code class='inline'>track_name</code> and <code class='inline'>popularity</code>, sorted by popularity descending.</li></ul></div>
+    </article>
+    
+      
+    <article class="task-card">
+      <div class="task-head">
+        <div class="task-num">Task 4</div>
+        <h3 class="task-title">Upbeat and happy tracks</h3>
+      </div>
+      <div class="task-body"><ul><li>Choose your thresholds, for example <code class='inline'>danceability &gt; 0.7</code> and <code class='inline'>valence &gt; 0.7</code>.</li><li>Also require <code class='inline'>popularity &gt; 60</code>.</li><li>Return track name, popularity, danceability, and valence.</li><li>In your written explanation, clearly state the thresholds you used.</li></ul></div>
+    </article>
+    
+      
+    <article class="task-card">
+      <div class="task-head">
+        <div class="task-num">Task 5</div>
+        <h3 class="task-title">Update artist name</h3>
+      </div>
+      <div class="task-body"><ul><li>Rename artist <code class='inline'>Jason Mraz</code> to <code class='inline'>Jason M.</code> if that artist exists in your data.</li><li>If <code class='inline'>Jason Mraz</code> is not present, choose another existing artist and clearly state which one you renamed.</li><li>Then query the updated artist name to confirm the change.</li></ul><div class='badge-row'><span class='note-badge'>Reset before each timed run</span></div></div>
+    </article>
+    
+      
+    <article class="task-card">
+      <div class="task-head">
+        <div class="task-num">Task 6</div>
+        <h3 class="task-title">Average track popularity by genre</h3>
+      </div>
+      <div class="task-body"><ul><li>Use <code class='inline'>HAS_GENRE</code>.</li><li>Return genre name and average popularity.</li><li>Sort by average popularity descending.</li></ul></div>
+    </article>
+    
+      
+    <article class="task-card">
+      <div class="task-head">
+        <div class="task-num">Task 7</div>
+        <h3 class="task-title">Genre-wise track counts</h3>
+      </div>
+      <div class="task-body"><ul><li>Use <code class='inline'>HAS_GENRE</code>.</li><li>Return genre name and track count.</li><li>Sort by track count descending and limit to the top 10 genres.</li></ul></div>
+    </article>
+    
+    </div>
+    
+      </div>
+    </section>
+    
+
+    <section id="timing" class="section-card">
+      <div class="section-head">
+        <div class="section-kicker">Execution time</div>
+        <h2 class="section-title">How to measure time correctly</h2>
+      </div>
+      <div class="section-body">
+        
+    <p>Run every task <strong>10 times</strong> and compute the average execution time.</p>
+    <table class="rule-table">
+      <tr><th>Timer to use</th><td><code class="inline">time.perf_counter()</code> is recommended.</td></tr>
+      <tr><th>Neo4j driver</th><td>You may use the Neo4j Python driver with <code class="inline">GraphDatabase.driver(...)</code>.</td></tr>
+      <tr><th>Reset rule</th><td>Only Task <strong>5</strong> changes the graph, so reset the artist name before each timed run of that task.</td></tr>
+    </table>
+    
+    <div class="callout danger">
+      <div class="callout-title">Important for the update task</div>
+      <div class="callout-body"><p>If you rename the same artist 10 times without resetting the original name, the later runs are not timing the same update. Reset the artist to the original name before each new timed run.</p></div>
+    </div>
+    
+    
+    <div class="code-block">
+      <div class="code-label">Python timing pattern</div>
+      <pre><code>import time
+from neo4j import GraphDatabase
+
+driver = GraphDatabase.driver(
+    &quot;bolt://localhost:7687&quot;,
+    auth=(&quot;neo4j&quot;, &quot;password&quot;)
+)
+
+# Use &quot;spotifydb&quot; if your environment supports a separate database for this assignment.
+# If your setup only gives you the default database, replace DB_NAME with that database name
+# (often &quot;neo4j&quot;), or omit database=DB_NAME and use the default session.
+DB_NAME = &quot;spotifydb&quot;
+
+query = &#x27;&#x27;&#x27;
+MATCH (t:Track)
+WHERE t.popularity &gt; 80
+RETURN t.track_name AS track_name, t.popularity AS popularity
+ORDER BY t.popularity DESC
+LIMIT 20
+&#x27;&#x27;&#x27;
+
+with driver.session(database=DB_NAME) as session:
+    times = []
+    for i in range(10):
+        start = time.perf_counter()
+        result = session.run(query).data()
+        end = time.perf_counter()
+
+        run_time = end - start
+        times.append(run_time)
+        print(f&quot;Run {i+1}: {run_time:.6f} seconds&quot;)
+
+    average_time = sum(times) / len(times)
+    print(&quot;Average execution time (s):&quot;, average_time)
+
+driver.close()</code></pre>
+    </div>
+    
+    
+      </div>
+    </section>
+    
+
+    <section id="deliverables" class="section-card">
+      <div class="section-head">
+        <div class="section-kicker">Part 5</div>
+        <h2 class="section-title">Exactly what to submit</h2>
+      </div>
+      <div class="section-body">
+        
+    <table class="deliverable-table">
+      <tr><th>ZIP file</th><td><code class="inline">group#_Option#_Project_Section11.zip</code></td></tr>
+      <tr><th>Solutions file</th><td>Include <code class="inline">Solutions.txt</code> with every task number and title, the Neo4j query, the 10 run times, and the average execution time.</td></tr>
+      <tr><th>Python scripts</th><td>Include the script or scripts used to clean the data and generate all seven CSV files.</td></tr>
+      <tr><th>Screenshots folder</th><td>Create <code class="inline">Screenshots/</code>. For each task, show the Cypher query in Neo4j Browser/Desktop, the first part of the result, and where you printed the average execution time. For the update task, a before/after verification screenshot is acceptable.</td></tr>
+    </table>
+    <div class="grid-2">
+      <div class="mini-card">
+        <div class="mini-title">Checklist before zipping</div>
+        <ul class="checklist">
+          <li>You used the exact labels and relationship types.</li>
+          <li>You used the exact CSV file names.</li>
+          <li>You used <code class="inline">spotifydb</code> if your environment supports a separate database, or clearly used your course setup’s default database if it does not.</li>
+          <li>The CSVs were built from the same cleaned track base.</li>
+          <li>You included full import commands, not placeholders.</li>
+          <li>All 7 tasks have timing and screenshots.</li>
+        </ul>
+      </div>
+      <div class="mini-card">
+        <div class="mini-title">Common mistakes to avoid</div>
+        <ul>
+          <li>Splitting artists incorrectly or leaving blank artist names.</li>
+          <li>Building node CSVs and relationship CSVs from different versions of the data.</li>
+          <li>Using the wrong label or relationship names.</li>
+          <li>Forgetting to copy the CSV files into Neo4j’s <code class="inline">import/</code> directory.</li>
+          <li>Not resetting the original artist name for Task 5 timing.</li>
+        </ul>
+      </div>
+    </div>
+    
+      </div>
+    </section>
+    
+      </main>
+    </div>
+  </div>
+</body>
+</html>

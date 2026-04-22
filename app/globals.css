@@ -1,0 +1,89 @@
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  /* Colors */
+  --color-bg: #0F172A;
+  --color-surface-1: #1E293B;
+  --color-surface-2: #334155;
+  --color-border: #475569;
+  --color-text: #F8FAFC;
+  --color-text-muted: #CBD5E1;
+  --color-text-subtle: #94A3B8;
+
+  --color-brand: #22C55E;
+  --color-brand-hover: #16A34A;
+
+  --color-node-track: #22C55E;
+  --color-node-artist: #A78BFA;
+  --color-node-album: #FB923C;
+  --color-node-genre: #F472B6;
+
+  /* Fonts */
+  --font-sans: "IBM Plex Sans", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  /* Shadows */
+  --shadow-glow-accent: 0 0 20px rgba(34, 197, 94, 0.25);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background-color: #0F172A;
+  color: #F8FAFC;
+  font-family: "IBM Plex Sans", system-ui, sans-serif;
+  overscroll-behavior: contain;
+  touch-action: manipulation;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Keyboard shortcut: / focuses the query input */
+:focus-visible {
+  outline: 2px solid #22C55E;
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Hide scrollbar utility — used by SuggestionChips and other scroll containers */
+.scrollbar-none {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #1E293B;
+}
+::-webkit-scrollbar-thumb {
+  background: #475569;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}
