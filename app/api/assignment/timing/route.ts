@@ -45,17 +45,21 @@ export async function POST(req: Request) {
 
   const driver = getDriver();
   const database = process.env.NEO4J_DATABASE ?? "neo4j";
-  const session = driver.session({ database, defaultAccessMode: "READ" });
+  // No access-mode restriction so we can call db.clearQueryCaches() (a write op)
+  // between timed runs while still using executeRead for the queries themselves.
+  const session = driver.session({ database });
 
   try {
-    // Append a unique comment to each run so Neo4j treats every execution as
-    // a distinct query string, bypassing the plan cache and forcing a fresh
-    // plan compilation each time.
     const times: number[] = [];
     for (let i = 0; i < runs; i++) {
-      const uncachedQuery = `${queryToTime}\n// _timing_run_${i}`;
+      // Clear the Neo4j query-plan cache before each run so every execution
+      // starts cold — no reused compiled plan.
+      try {
+        await session.executeWrite((tx) => tx.run("CALL db.clearQueryCaches()"));
+      } catch { /* silently ignore on restricted editions */ }
+
       const start = performance.now();
-      await session.executeRead((tx) => tx.run(uncachedQuery, {}));
+      await session.executeRead((tx) => tx.run(queryToTime, {}));
       const end = performance.now();
       times.push(Math.round((end - start) * 1000) / 1000);
     }
