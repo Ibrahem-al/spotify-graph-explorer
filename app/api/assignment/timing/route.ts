@@ -48,13 +48,14 @@ export async function POST(req: Request) {
   const session = driver.session({ database, defaultAccessMode: "READ" });
 
   try {
-    // Warmup run so Neo4j compiles and caches the query plan before timing starts.
-    await session.executeRead((tx) => tx.run(queryToTime, {}));
-
+    // Append a unique comment to each run so Neo4j treats every execution as
+    // a distinct query string, bypassing the plan cache and forcing a fresh
+    // plan compilation each time.
     const times: number[] = [];
     for (let i = 0; i < runs; i++) {
+      const uncachedQuery = `${queryToTime}\n// _timing_run_${i}`;
       const start = performance.now();
-      await session.executeRead((tx) => tx.run(queryToTime, {}));
+      await session.executeRead((tx) => tx.run(uncachedQuery, {}));
       const end = performance.now();
       times.push(Math.round((end - start) * 1000) / 1000);
     }
