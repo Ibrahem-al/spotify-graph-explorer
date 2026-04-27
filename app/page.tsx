@@ -16,6 +16,19 @@ import { useUserKey } from "@/hooks/useUserKey";
 import { useIsPhone } from "@/hooks/useIsPhone";
 import { generateCypherOllama } from "@/lib/ollama";
 
+// Strip __node / __edge placeholders left by shape(); keep only displayable scalar columns.
+function isGraphRef(v: unknown): boolean {
+  return typeof v === "object" && v !== null && ("__node" in (v as object) || "__edge" in (v as object));
+}
+function scalarRows(rows: Record<string, unknown>[]): Record<string, unknown>[] {
+  return rows
+    .map((row) => {
+      const entries = Object.entries(row).filter(([, v]) => !isGraphRef(v));
+      return entries.length > 0 ? Object.fromEntries(entries) : null;
+    })
+    .filter((r): r is Record<string, unknown> => r !== null);
+}
+
 const GraphCanvas = dynamic(() => import("@/components/GraphCanvas"), {
   ssr: false,
   loading: () => (
@@ -208,45 +221,67 @@ export default function HomePage() {
                     </div>
                   )}
 
-                  {state.status === "success" && (
-                    <>
-                      {/* Rationale */}
-                      <p className="text-[#CBD5E1] text-[15px] leading-relaxed">
-                        {state.rationale}
-                      </p>
+                  {state.status === "success" && (() => {
+                    const hasGraph  = state.nodes.length > 0;
+                    const tableRows = scalarRows(state.rows);
+                    const hasTable  = tableRows.length > 0;
+                    const showBoth  = hasGraph && hasTable;
 
-                      {/* Meta chips */}
-                      <MetaChips {...state.meta} />
+                    return (
+                      <>
+                        {/* Rationale */}
+                        <p className="text-[#CBD5E1] text-[15px] leading-relaxed">
+                          {state.rationale}
+                        </p>
 
-                      {/* Graph card — only when we actually have nodes */}
-                      {state.nodes.length > 0 && (
-                        <div className="relative w-full rounded-xl border border-[#334155] overflow-hidden h-[240px] sm:h-[420px]">
-                          <GraphCanvas
-                            nodes={state.nodes}
-                            edges={state.edges}
-                            isLoading={false}
-                          />
-                        </div>
-                      )}
+                        {/* Meta chips */}
+                        <MetaChips {...state.meta} />
 
-                      {/* Tabular results — for aggregates / scalar projections */}
-                      {state.rows.length > 0 && state.nodes.length === 0 && (
-                        <ResultsTable rows={state.rows} />
-                      )}
+                        {/* Graph */}
+                        {hasGraph && (
+                          <>
+                            {showBoth && (
+                              <p className="text-[11px] font-semibold uppercase tracking-widest text-[#475569]">
+                                Graph
+                              </p>
+                            )}
+                            <div className="relative w-full rounded-xl border border-[#334155] overflow-hidden h-[240px] sm:h-[420px]">
+                              <GraphCanvas
+                                nodes={state.nodes}
+                                edges={state.edges}
+                                isLoading={false}
+                              />
+                            </div>
+                          </>
+                        )}
 
-                      {/* Both empty — genuine no-data result */}
-                      {state.nodes.length === 0 && state.rows.length === 0 && (
-                        <div className="rounded-xl border border-[#334155] bg-[#0B1120] px-4 py-6 text-center">
-                          <p className="text-[#94A3B8] text-sm">
-                            The query ran successfully but returned no results.
-                          </p>
-                        </div>
-                      )}
+                        {/* Table — shown for aggregates and also alongside the graph
+                            when the query projects scalar columns in addition to nodes */}
+                        {hasTable && (
+                          <>
+                            {showBoth && (
+                              <p className="text-[11px] font-semibold uppercase tracking-widest text-[#475569]">
+                                Table
+                              </p>
+                            )}
+                            <ResultsTable rows={tableRows} />
+                          </>
+                        )}
 
-                      {/* Cypher block */}
-                      <CypherBlock cypher={state.cypher} />
-                    </>
-                  )}
+                        {/* No results at all */}
+                        {!hasGraph && !hasTable && (
+                          <div className="rounded-xl border border-[#334155] bg-[#0B1120] px-4 py-6 text-center">
+                            <p className="text-[#94A3B8] text-sm">
+                              The query ran successfully but returned no results.
+                            </p>
+                          </div>
+                        )}
+
+                        {/* Cypher block */}
+                        <CypherBlock cypher={state.cypher} />
+                      </>
+                    );
+                  })()}
                 </div>
               </div>
 

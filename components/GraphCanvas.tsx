@@ -67,6 +67,8 @@ type NvlComponent = React.ForwardRefExoticComponent<{
   nodes: unknown[];
   rels: unknown[];
   layout?: string;
+  layoutOptions?: Record<string, unknown>;
+  positions?: Array<{ id: string; x: number; y: number }>;
   nvlOptions?: Record<string, unknown>;
   nvlCallbacks?: Record<string, unknown>;
   mouseEventCallbacks?: Record<string, unknown>;
@@ -131,6 +133,17 @@ export default function GraphCanvas({ nodes, edges, isLoading }: GraphCanvasProp
     return { nvlNodes, nvlRels };
   }, [nodes, edges, selectedNode]);
 
+  // Circular pre-positions — keyed only on nodes (not selectedNode) so clicks don't reset layout
+  const initialPositions = useMemo(() => {
+    const n = nodes.length;
+    if (n === 0) return [];
+    const r = Math.max(200, Math.sqrt(n) * 100);
+    return nodes.map((node, i) => {
+      const angle = (i / n) * Math.PI * 2 - Math.PI / 2;
+      return { id: node.id, x: Math.cos(angle) * r, y: Math.sin(angle) * r };
+    });
+  }, [nodes]);
+
   // Fit after layout, with a small delay so physics has time to settle
   useEffect(() => {
     if (!NVL || nvlNodes.length === 0) return;
@@ -138,7 +151,7 @@ export default function GraphCanvas({ nodes, edges, isLoading }: GraphCanvasProp
       try {
         nvlRef.current?.fit?.(nvlNodes.map((n) => n.id), { animated: true });
       } catch { /* noop */ }
-    }, 450);
+    }, 600);
     return () => clearTimeout(timer);
   }, [NVL, nvlNodes.length]); // only on mount / node-count change, not on selection
 
@@ -218,13 +231,14 @@ export default function GraphCanvas({ nodes, edges, isLoading }: GraphCanvasProp
           nodes={nvlNodes}
           rels={nvlRels}
           layout={nvlRels.length > 0 ? "forceDirected" : "grid"}
+          layoutOptions={{ enableCytoscape: true }}
+          positions={initialPositions}
           nvlOptions={{
             allowDynamicMinZoom: true,
             initialZoom: 0.7,
             minZoom: 0.05,
             maxZoom: 8,
             disableTelemetry: true,
-            useWebGL: true,
           }}
           mouseEventCallbacks={{
             onPan: true,
@@ -270,7 +284,7 @@ export default function GraphCanvas({ nodes, edges, isLoading }: GraphCanvasProp
 
       {/* Node inspector — slides in from the left */}
       <div
-        className="absolute top-3 left-3 z-[20] w-56 rounded-xl shadow-2xl overflow-hidden"
+        className="absolute top-3 left-3 z-[20] w-64 rounded-xl shadow-2xl overflow-hidden"
         style={{
           transition: "opacity 180ms ease, transform 180ms ease",
           opacity: selectedNode ? 1 : 0,
@@ -331,6 +345,22 @@ export default function GraphCanvas({ nodes, edges, isLoading }: GraphCanvasProp
               </table>
             )}
           </div>
+
+          {/* Spotify embed — only for Track nodes with a track_id */}
+          {selectedNode?.label === "Track" && typeof selectedNode.properties.track_id === "string" && (
+            <div className="border-t border-[#1E293B]">
+              <iframe
+                key={selectedNode.properties.track_id as string}
+                src={`https://open.spotify.com/embed/track/${selectedNode.properties.track_id}?utm_source=generator&theme=0`}
+                width="100%"
+                height="80"
+                allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+                loading="lazy"
+                style={{ border: "none", display: "block" }}
+                title={`Play ${getNodeCaption(selectedNode)} on Spotify`}
+              />
+            </div>
+          )}
         </div>
       </div>
 

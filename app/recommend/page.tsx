@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useRef } from "react";
-import { Music2, Sparkles, ArrowRight, ListMusic, Users, Wand2 } from "lucide-react";
+import { Music2, Sparkles, ArrowRight, ListMusic, Users, Wand2, Play, ChevronUp } from "lucide-react";
 import { clsx } from "clsx";
 import { PageTabs } from "@/components/assignment/PageTabs";
 
@@ -22,11 +22,14 @@ interface Profile {
   avgAcousticness: number;
   avgTempo: number;
   topGenres: string[];
+  profileSource: "spotify" | "playlist";
 }
 
 interface MatchStats {
   total: number;
   directMatches: number;
+  spotifyPicksFound: number;
+  fillCount: number;
   knownArtists: number;
   coveragePercent: number;
   fallbackLevel: "direct" | "artist" | "genre" | "audio";
@@ -39,10 +42,11 @@ interface Recommendation {
   danceability: number;
   valence: number;
   acousticness: number;
+  energy: number;
   popularity: number;
   genres: string[];
   score: number;
-  matchReason: "artist" | "genre" | "audio";
+  matchReason: "spotify" | "artist" | "genre" | "audio";
 }
 
 interface RecommendResult {
@@ -55,9 +59,10 @@ interface RecommendResult {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 const MATCH_REASON_CONFIG = {
-  artist: { label: "Same artist", color: "bg-[#22C55E]/15 text-[#22C55E]" },
-  genre:  { label: "Same genre",  color: "bg-[#60A5FA]/15 text-[#60A5FA]" },
-  audio:  { label: "Similar sound", color: "bg-[#A78BFA]/15 text-[#A78BFA]" },
+  spotify: { label: "Spotify pick",  color: "bg-[#1DB954]/15 text-[#1DB954]" },
+  artist:  { label: "Same artist",   color: "bg-[#22C55E]/15 text-[#22C55E]" },
+  genre:   { label: "Same genre",    color: "bg-[#60A5FA]/15 text-[#60A5FA]" },
+  audio:   { label: "Similar sound", color: "bg-[#A78BFA]/15 text-[#A78BFA]" },
 };
 
 const FALLBACK_DESCRIPTIONS = {
@@ -101,6 +106,7 @@ export default function RecommendPage() {
   const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [result, setResult] = useState<RecommendResult | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [playingId, setPlayingId] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const handleSubmit = useCallback(async (e?: React.FormEvent) => {
@@ -205,9 +211,9 @@ export default function RecommendPage() {
               {/* How it works */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full max-w-xl mt-2">
                 {[
-                  { icon: <ListMusic size={16} />, title: "Fetch playlist", body: "We pull your tracks from the Spotify API." },
-                  { icon: <Sparkles size={16} />, title: "Build your profile", body: "Danceability, mood, acousticness and genres are averaged." },
-                  { icon: <Music2 size={16} />, title: "Match in the graph", body: "Neo4j finds 30 tracks that fit your sound, even if yours aren't in the DB." },
+                  { icon: <ListMusic size={16} />, title: "Fetch playlist", body: "We pull your tracks and audio features from the Spotify API." },
+                  { icon: <Sparkles size={16} />, title: "Spotify refines your taste", body: "Spotify's recommendation engine sharpens your audio profile using its own ML model." },
+                  { icon: <Music2 size={16} />, title: "Match in the graph", body: "Neo4j finds 30 tracks that fit the refined sound, even if yours aren't in the DB." },
                 ].map((s, i) => (
                   <div key={i} className="bg-[#0B1120] border border-[#1E293B] rounded-xl p-4 text-left">
                     <div className="text-[#22C55E] mb-2">{s.icon}</div>
@@ -228,7 +234,7 @@ export default function RecommendPage() {
               </div>
               <div className="text-center">
                 <p className="text-[#F8FAFC] font-medium">Analysing playlist…</p>
-                <p className="text-xs text-[#64748b] mt-1">Fetching audio features and querying the graph</p>
+                <p className="text-xs text-[#64748b] mt-1">Fetching audio features · refining taste with Spotify · querying graph</p>
               </div>
             </div>
           )}
@@ -274,22 +280,41 @@ export default function RecommendPage() {
 
                   {/* Match stats */}
                   <div className="bg-[#0B1120] border border-[#1E293B] rounded-xl p-4">
-                    <p className="text-xs font-semibold text-[#64748b] uppercase tracking-wider mb-3">Coverage</p>
-                    <div className="flex items-end gap-2 mb-2">
-                      <span className="text-2xl font-bold text-[#F8FAFC]">
-                        {result.matchStats.directMatches}
-                      </span>
-                      <span className="text-sm text-[#64748b] mb-0.5">
-                        / {result.matchStats.total} in graph
-                      </span>
+                    <p className="text-xs font-semibold text-[#64748b] uppercase tracking-wider mb-3">Results</p>
+
+                    {/* Spotify picks vs fill breakdown */}
+                    <div className="flex flex-col gap-1.5 mb-3">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-[#1DB954]">Spotify picks found</span>
+                        <span className="font-semibold text-[#F8FAFC]">{result.matchStats.spotifyPicksFound}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-[#A78BFA]">Audio-similarity fill</span>
+                        <span className="font-semibold text-[#F8FAFC]">{result.matchStats.fillCount}</span>
+                      </div>
+                      <div className="h-1.5 bg-[#1E293B] rounded-full overflow-hidden mt-1">
+                        <div
+                          className="h-full bg-[#1DB954] rounded-full"
+                          style={{ width: `${(result.matchStats.spotifyPicksFound / 15) * 100}%` }}
+                        />
+                      </div>
                     </div>
-                    <div className="h-1.5 bg-[#1E293B] rounded-full overflow-hidden mb-3">
-                      <div
-                        className="h-full bg-[#22C55E] rounded-full"
-                        style={{ width: `${result.matchStats.coveragePercent}%` }}
-                      />
+
+                    <div className="pt-3 border-t border-[#1E293B]">
+                      <p className="text-xs text-[#64748b] mb-1">Playlist coverage</p>
+                      <div className="flex items-end gap-2 mb-1.5">
+                        <span className="text-lg font-bold text-[#F8FAFC]">{result.matchStats.directMatches}</span>
+                        <span className="text-xs text-[#64748b] mb-0.5">/ {result.matchStats.total} tracks in graph</span>
+                      </div>
+                      <div className="h-1 bg-[#1E293B] rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-[#22C55E] rounded-full"
+                          style={{ width: `${result.matchStats.coveragePercent}%` }}
+                        />
+                      </div>
                     </div>
-                    <div className="flex items-start gap-2 text-xs text-[#64748b] leading-relaxed">
+
+                    <div className="flex items-start gap-2 text-xs text-[#64748b] leading-relaxed mt-3">
                       <span className="mt-px shrink-0">
                         {result.matchStats.fallbackLevel === "direct" ? "✦" :
                          result.matchStats.fallbackLevel === "artist" ? "◈" : "◎"}
@@ -306,7 +331,18 @@ export default function RecommendPage() {
 
                   {/* Audio profile */}
                   <div className="bg-[#0B1120] border border-[#1E293B] rounded-xl p-4">
-                    <p className="text-xs font-semibold text-[#64748b] uppercase tracking-wider mb-4">Your vibe</p>
+                    <div className="flex items-center justify-between mb-4">
+                      <p className="text-xs font-semibold text-[#64748b] uppercase tracking-wider">Your vibe</p>
+                      {result.profile.profileSource === "spotify" ? (
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#22C55E]/10 text-[#22C55E] border border-[#22C55E]/20">
+                          Spotify-refined
+                        </span>
+                      ) : (
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#475569]/20 text-[#64748b]">
+                          Playlist avg
+                        </span>
+                      )}
+                    </div>
                     <div className="flex flex-col gap-3">
                       <FeatureBar label="Danceability" value={result.profile.avgDanceability} color="#22C55E" />
                       <FeatureBar label="Energy"       value={result.profile.avgEnergy}       color="#FB923C" />
@@ -335,7 +371,13 @@ export default function RecommendPage() {
                   </p>
                   <div className="flex flex-col gap-2">
                     {result.recommendations.map((rec, i) => (
-                      <RecommendCard key={rec.id} rec={rec} rank={i + 1} />
+                      <RecommendCard
+                        key={rec.id}
+                        rec={rec}
+                        rank={i + 1}
+                        isPlaying={playingId === rec.id}
+                        onTogglePlay={() => setPlayingId((prev) => (prev === rec.id ? null : rec.id))}
+                      />
                     ))}
                     {result.recommendations.length === 0 && (
                       <div className="text-center py-12 text-[#64748b] text-sm">
@@ -355,49 +397,97 @@ export default function RecommendPage() {
 
 // ── Recommendation Card ───────────────────────────────────────────────────────
 
-function RecommendCard({ rec, rank }: { rec: Recommendation; rank: number }) {
+function RecommendCard({
+  rec,
+  rank,
+  isPlaying,
+  onTogglePlay,
+}: {
+  rec: Recommendation;
+  rank: number;
+  isPlaying: boolean;
+  onTogglePlay: () => void;
+}) {
   const reason = MATCH_REASON_CONFIG[rec.matchReason];
 
   return (
-    <div className="flex items-center gap-4 bg-[#0B1120] border border-[#1E293B] hover:border-[#334155] rounded-xl px-4 py-3 transition-colors group">
-      {/* Rank */}
-      <span className="text-xs text-[#475569] w-6 text-right shrink-0 font-mono">{rank}</span>
+    <div
+      className={clsx(
+        "bg-[#0B1120] border rounded-xl transition-colors overflow-hidden",
+        isPlaying ? "border-[#1DB954]/40" : "border-[#1E293B] hover:border-[#334155]"
+      )}
+    >
+      {/* Main row */}
+      <div className="flex items-center gap-4 px-4 py-3">
+        {/* Rank */}
+        <span className="text-xs text-[#475569] w-6 text-right shrink-0 font-mono">{rank}</span>
 
-      {/* Track info */}
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-[#F8FAFC] truncate">{rec.name}</p>
-        <p className="text-xs text-[#64748b] truncate">{rec.artist}</p>
-        {rec.genres.length > 0 && (
-          <div className="flex flex-wrap gap-1 mt-1.5">
-            {rec.genres.slice(0, 3).map((g) => <GenrePill key={g} genre={g} />)}
+        {/* Track info */}
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold text-[#F8FAFC] truncate">{rec.name}</p>
+          <p className="text-xs text-[#64748b] truncate">{rec.artist}</p>
+          {rec.genres.length > 0 && (
+            <div className="flex flex-wrap gap-1 mt-1.5">
+              {rec.genres.slice(0, 3).map((g) => <GenrePill key={g} genre={g} />)}
+            </div>
+          )}
+        </div>
+
+        {/* Mini feature bars */}
+        <div className="hidden sm:flex flex-col gap-1.5 w-24 shrink-0">
+          <MiniBar label="Dance"  value={rec.danceability} color="#22C55E" />
+          <MiniBar label="Energy" value={rec.energy}        color="#FB923C" />
+          <MiniBar label="Mood"   value={rec.valence}       color="#F472B6" />
+        </div>
+
+        {/* Popularity + match reason + play button */}
+        <div className="flex flex-col items-end gap-2 shrink-0">
+          <span className={clsx("text-[11px] px-2 py-0.5 rounded-full font-medium", reason.color)}>
+            {reason.label}
+          </span>
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1">
+              <div className="flex gap-0.5">
+                {Array.from({ length: 5 }).map((_, j) => (
+                  <div
+                    key={j}
+                    className="w-1 h-2.5 rounded-sm"
+                    style={{ backgroundColor: j < Math.round(rec.popularity / 20) ? "#22C55E" : "#1E293B" }}
+                  />
+                ))}
+              </div>
+              <span className="text-[10px] text-[#475569]">{rec.popularity}</span>
+            </div>
+            <button
+              onClick={onTogglePlay}
+              className={clsx(
+                "flex items-center justify-center w-6 h-6 rounded-full transition-colors shrink-0",
+                isPlaying
+                  ? "bg-[#1DB954]/20 text-[#1DB954] hover:bg-[#1DB954]/30"
+                  : "bg-[#1E293B] text-[#64748b] hover:bg-[#334155] hover:text-[#F8FAFC]"
+              )}
+              aria-label={isPlaying ? "Collapse player" : "Play on Spotify"}
+            >
+              {isPlaying ? <ChevronUp size={12} /> : <Play size={10} />}
+            </button>
           </div>
-        )}
-      </div>
-
-      {/* Mini feature bars */}
-      <div className="hidden sm:flex flex-col gap-1.5 w-24 shrink-0">
-        <MiniBar label="Dance" value={rec.danceability} color="#22C55E" />
-        <MiniBar label="Mood"  value={rec.valence}       color="#F472B6" />
-      </div>
-
-      {/* Popularity + match reason */}
-      <div className="flex flex-col items-end gap-2 shrink-0">
-        <span className={clsx("text-[11px] px-2 py-0.5 rounded-full font-medium", reason.color)}>
-          {reason.label}
-        </span>
-        <div className="flex items-center gap-1">
-          <div className="flex gap-0.5">
-            {Array.from({ length: 5 }).map((_, j) => (
-              <div
-                key={j}
-                className="w-1 h-2.5 rounded-sm"
-                style={{ backgroundColor: j < Math.round(rec.popularity / 20) ? "#22C55E" : "#1E293B" }}
-              />
-            ))}
-          </div>
-          <span className="text-[10px] text-[#475569]">{rec.popularity}</span>
         </div>
       </div>
+
+      {/* Spotify embed — expands when play is toggled */}
+      {isPlaying && (
+        <div className="border-t border-[#1E293B]">
+          <iframe
+            src={`https://open.spotify.com/embed/track/${rec.id}?utm_source=generator&theme=0`}
+            width="100%"
+            height="80"
+            allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+            loading="lazy"
+            style={{ border: "none", display: "block" }}
+            title={`Play ${rec.name} on Spotify`}
+          />
+        </div>
+      )}
     </div>
   );
 }

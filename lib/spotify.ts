@@ -131,6 +131,42 @@ export async function fetchAudioFeatures(trackIds: string[]): Promise<SpotifyAud
   return results;
 }
 
+export interface SpotifyRecommendationSeeds {
+  danceability: number;
+  valence: number;
+  acousticness: number;
+  energy: number;
+  tempo: number;
+}
+
+// Calls Spotify's /recommendations with up to 5 seed tracks and target audio features.
+// Returns the IDs of the recommended tracks (no audio features included — fetch separately).
+export async function fetchSpotifyRecommendations(
+  seedTrackIds: string[],
+  targets: SpotifyRecommendationSeeds,
+  limit = 50
+): Promise<string[]> {
+  if (seedTrackIds.length === 0) return [];
+  const token = await getAccessToken();
+
+  const params = new URLSearchParams({
+    seed_tracks: seedTrackIds.slice(0, 5).join(","),
+    target_danceability: targets.danceability.toFixed(4),
+    target_valence: targets.valence.toFixed(4),
+    target_acousticness: targets.acousticness.toFixed(4),
+    target_energy: targets.energy.toFixed(4),
+    target_tempo: Math.round(targets.tempo).toString(),
+    limit: String(limit),
+  });
+
+  const res = await fetch(`${SPOTIFY_API_BASE}/recommendations?${params}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) return []; // degrade gracefully — fall back to raw playlist profile
+  const data = await res.json() as { tracks?: { id: string }[] };
+  return (data.tracks ?? []).map((t) => t.id);
+}
+
 export async function fetchArtistGenres(artistIds: string[]): Promise<Map<string, string[]>> {
   if (artistIds.length === 0) return new Map();
   const token = await getAccessToken();
