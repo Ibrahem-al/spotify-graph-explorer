@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { parse } from "csv-parse/sync";
+import { checkRateLimit, getIP } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -28,6 +29,9 @@ function countLines(buffer: Buffer): number {
 }
 
 export async function GET(req: Request) {
+  const limited = checkRateLimit("csvPreview", getIP(req));
+  if (limited) return limited;
+
   const { searchParams } = new URL(req.url);
   const file = searchParams.get("file") ?? "";
 

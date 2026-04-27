@@ -3,11 +3,44 @@
 import { useState, useEffect, useRef } from "react";
 import { X, ExternalLink, Key } from "lucide-react";
 import { clsx } from "clsx";
+import type { Provider } from "@/lib/gemini";
+
+interface ProviderConfig {
+  label: string;
+  placeholder: string;
+  model: string;
+  keyUrl: string;
+  keyUrlLabel: string;
+}
+
+const PROVIDERS: Record<Provider, ProviderConfig> = {
+  groq: {
+    label: "Groq",
+    placeholder: "gsk_...",
+    model: "llama-3.3-70b (free)",
+    keyUrl: "https://console.groq.com/keys",
+    keyUrlLabel: "console.groq.com/keys",
+  },
+  openai: {
+    label: "OpenAI",
+    placeholder: "sk-...",
+    model: "gpt-4o-mini",
+    keyUrl: "https://platform.openai.com/api-keys",
+    keyUrlLabel: "platform.openai.com/api-keys",
+  },
+  gemini: {
+    label: "Gemini",
+    placeholder: "AIza...",
+    model: "gemini-2.0-flash",
+    keyUrl: "https://aistudio.google.com/app/apikey",
+    keyUrlLabel: "aistudio.google.com/apikey",
+  },
+};
 
 interface ByoKeyModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (key: string) => void;
+  onSave: (key: string, provider: Provider) => void;
   onUseOllama?: () => void;
   isPhone: boolean;
   error?: string | null;
@@ -21,9 +54,12 @@ export function ByoKeyModal({
   isPhone,
   error,
 }: ByoKeyModalProps) {
+  const [provider, setProvider] = useState<Provider>("groq");
   const [key, setKey] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+
+  const config = PROVIDERS[provider];
 
   useEffect(() => {
     if (isOpen) {
@@ -75,7 +111,7 @@ export function ByoKeyModal({
   const handleSave = () => {
     const trimmed = key.trim();
     if (!trimmed) return;
-    onSave(trimmed);
+    onSave(trimmed, provider);
   };
 
   return (
@@ -101,7 +137,7 @@ export function ByoKeyModal({
           <div className="flex items-center gap-2">
             <Key size={20} className="text-[#22C55E]" aria-hidden="true" />
             <h2 id="modal-title" className="text-base font-semibold text-[#F8FAFC]">
-              Free quota reached
+              Use your own API key
             </h2>
           </div>
           <button
@@ -113,53 +149,54 @@ export function ByoKeyModal({
           </button>
         </div>
 
-        {/* Steps */}
-        <ol className="flex flex-col gap-3 mb-5">
-          {[
-            {
-              label: "Open Groq Console",
-              href: "https://console.groq.com/keys",
-            },
-            {
-              label: "Create a free API key",
-              href: "https://console.groq.com/keys",
-            },
-            { label: "Paste it below", href: null },
-          ].map((step, i) => (
-            <li key={i} className="flex items-center gap-3 text-sm text-[#CBD5E1]">
-              <span className="shrink-0 w-6 h-6 rounded-full bg-[#334155] flex items-center justify-center text-xs font-semibold text-[#F8FAFC]">
-                {i + 1}
-              </span>
-              {step.href ? (
-                <a
-                  href={step.href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="hover:text-[#22C55E] underline underline-offset-2 inline-flex items-center gap-1 transition-colors"
-                >
-                  {step.label}
-                  <ExternalLink size={12} aria-hidden="true" />
-                </a>
-              ) : (
-                <span>{step.label}</span>
+        {/* Provider selector */}
+        <div className="flex gap-1.5 mb-5 p-1 bg-[#0F172A] rounded-xl">
+          {(Object.keys(PROVIDERS) as Provider[]).map((p) => (
+            <button
+              key={p}
+              onClick={() => { setProvider(p); setKey(""); }}
+              className={clsx(
+                "flex-1 py-2 rounded-lg text-sm font-medium transition-colors duration-150",
+                provider === p
+                  ? "bg-[#22C55E] text-white"
+                  : "text-[#94A3B8] hover:text-[#F8FAFC] hover:bg-[#1E293B]"
               )}
-            </li>
+            >
+              {PROVIDERS[p].label}
+            </button>
           ))}
-        </ol>
+        </div>
+
+        {/* Get key instruction */}
+        <div className="flex items-center gap-2 mb-4 text-sm text-[#CBD5E1]">
+          <span>Get a free key at</span>
+          <a
+            href={config.keyUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:text-[#22C55E] underline underline-offset-2 inline-flex items-center gap-1 transition-colors"
+          >
+            {config.keyUrlLabel}
+            <ExternalLink size={12} aria-hidden="true" />
+          </a>
+        </div>
 
         {/* Key input */}
         <div className="flex flex-col gap-1.5 mb-4">
-          <label htmlFor="groq-key" className="text-sm font-medium text-[#CBD5E1]">
-            Your Groq API key
+          <label htmlFor="api-key" className="text-sm font-medium text-[#CBD5E1]">
+            {config.label} API key
+            <span className="ml-2 text-xs text-[#64748b] font-normal">
+              · {config.model}
+            </span>
           </label>
           <input
             ref={inputRef}
-            id="groq-key"
+            id="api-key"
             type="password"
             value={key}
             onChange={(e) => setKey(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleSave()}
-            placeholder="gsk_..."
+            placeholder={config.placeholder}
             autoComplete="off"
             className={clsx(
               "w-full px-4 py-2.5 rounded-xl text-sm",
@@ -172,7 +209,7 @@ export function ByoKeyModal({
             <p className="text-xs text-red-400">{error}</p>
           ) : (
             <p className="text-xs text-[#64748b]">
-              Stored only in your browser. Never sent to us.
+              Stored only in your browser. Never sent to our servers.
             </p>
           )}
         </div>
@@ -210,7 +247,7 @@ export function ByoKeyModal({
 
           {isPhone && (
             <p className="text-xs text-center text-[#64748b] px-2">
-              Local models need a laptop. Try your own Groq key, or check back later.
+              Local models need a laptop. Try your own API key, or check back later.
             </p>
           )}
         </div>

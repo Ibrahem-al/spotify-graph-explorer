@@ -67,7 +67,7 @@ function reducer(state: QueryState, action: Action): QueryState {
   }
 }
 
-export function useQuery(opts: { userKey: string | null }) {
+export function useQuery(opts: { userKey: string | null; userProvider?: string }) {
   const [state, dispatch] = useReducer(reducer, { status: "idle" });
 
   const submit = useCallback(
@@ -75,7 +75,10 @@ export function useQuery(opts: { userKey: string | null }) {
       dispatch({ type: "SUBMIT", question });
 
       const headers: Record<string, string> = { "Content-Type": "application/json" };
-      if (opts.userKey) headers["x-user-groq-key"] = opts.userKey;
+      if (opts.userKey) {
+        headers["x-user-api-key"] = opts.userKey;
+        headers["x-user-provider"] = opts.userProvider ?? "groq";
+      }
 
       const body: Record<string, string> = { question };
       if (prebuiltCypher) body.cypher = prebuiltCypher;

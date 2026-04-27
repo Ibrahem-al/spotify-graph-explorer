@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { spawn } from "node:child_process";
 import path from "node:path";
+import { checkRateLimit, getIP } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -132,7 +133,10 @@ function runPython(attempt: PythonAttempt, scriptPath: string, cwd: string): Pro
   });
 }
 
-export async function POST() {
+export async function POST(req: Request) {
+  const limited = checkRateLimit("clean", getIP(req));
+  if (limited) return limited;
+
   const cwd = process.cwd();
   const scriptPath = path.join(cwd, "cleaning.py");
 

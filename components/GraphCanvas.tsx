@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
-import { Music2, X } from "lucide-react";
+import { Music2, X, Maximize2 } from "lucide-react";
 import type { ShapedNode, ShapedEdge } from "@/lib/shape";
 
 interface GraphCanvasProps {
@@ -11,31 +11,41 @@ interface GraphCanvasProps {
 }
 
 const NODE_COLORS: Record<string, string> = {
-  Track: "#22C55E",
+  Track:  "#22C55E",
   Artist: "#A78BFA",
-  Album: "#FB923C",
-  Genre: "#F472B6",
+  Album:  "#FB923C",
+  Genre:  "#F472B6",
+};
+
+// Brighter/lighter border tints for each label
+const NODE_BORDER_COLORS: Record<string, string> = {
+  Track:  "#4ADE80",
+  Artist: "#C4B5FD",
+  Album:  "#FCA56B",
+  Genre:  "#F9A8D4",
 };
 
 function getNodeColor(label: string): string {
   return NODE_COLORS[label] ?? "#94A3B8";
 }
 
+function getNodeBorderColor(label: string): string {
+  return NODE_BORDER_COLORS[label] ?? "#CBD5E1";
+}
+
+// 14–36 px — gentler range than the old 24–56
 function getNodeSize(node: ShapedNode): number {
   const pop = node.properties?.popularity;
   if (typeof pop === "number") {
-    return 24 + (pop / 100) * 32;
+    return 14 + (pop / 100) * 22;
   }
-  return 32;
+  return 22;
 }
 
 function getNodeCaption(n: ShapedNode): string {
-  const raw =
-    n.properties?.track_name ??
-    n.properties?.name ??
-    n.id;
+  const raw = n.properties?.track_name ?? n.properties?.name ?? n.id;
   const str = String(raw);
-  return str.length > 24 ? str.slice(0, 22) + "…" : str;
+  return str.length > 22 ? str.slice(0, 20) + "…" : str;
 }
 
 function formatPropValue(v: unknown): string {
@@ -49,6 +59,8 @@ function formatPropValue(v: unknown): string {
 type NvlHandle = {
   fit?: (nodeIds?: string[], options?: Record<string, unknown>) => void;
   resetZoom?: () => void;
+  setZoom?: (zoom: number, options?: Record<string, unknown>) => void;
+  getZoom?: () => number;
 };
 
 type NvlComponent = React.ForwardRefExoticComponent<{
@@ -78,9 +90,7 @@ export default function GraphCanvas({ nodes, edges, isLoading }: GraphCanvasProp
           setNvlError("NVL component not found in module.");
         }
       })
-      .catch((err: Error) => {
-        setNvlError(err.message);
-      });
+      .catch((err: Error) => setNvlError(err.message));
   }, []);
 
   const nodeMap = useMemo(() => {
@@ -89,37 +99,48 @@ export default function GraphCanvas({ nodes, edges, isLoading }: GraphCanvasProp
     return m;
   }, [nodes]);
 
+  // Re-derive nvlNodes when selection changes so the ring updates in-place
   const { nvlNodes, nvlRels } = useMemo(() => {
-    const nvlNodes = nodes.map((n) => ({
-      id: n.id,
-      color: getNodeColor(n.label),
-      size: getNodeSize(n),
-      caption: getNodeCaption(n),
-      captionSize: 3,
-      captionAlign: "center" as const,
-    }));
+    const nvlNodes = nodes.map((n) => {
+      const isSelected = selectedNode?.id === n.id;
+      return {
+        id: n.id,
+        color: getNodeColor(n.label),
+        size: getNodeSize(n),
+        caption: getNodeCaption(n),
+        captionSize: 3.5,
+        captionAlign: "bottom" as const,
+        captionColor: "#94A3B8",
+        borderColor: isSelected ? "#FFFFFF" : getNodeBorderColor(n.label),
+        borderWidth: isSelected ? 3 : 1.5,
+        selected: isSelected,
+      };
+    });
 
     const nvlRels = edges.map((e) => ({
       id: e.id,
       from: e.source,
       to: e.target,
       caption: e.type,
-      color: "#64748b",
-      width: 1.5,
+      captionSize: 2.5,
+      captionColor: "#475569",
+      color: "#334155",
+      width: 2,
     }));
 
     return { nvlNodes, nvlRels };
-  }, [nodes, edges]);
+  }, [nodes, edges, selectedNode]);
 
+  // Fit after layout, with a small delay so physics has time to settle
   useEffect(() => {
     if (!NVL || nvlNodes.length === 0) return;
     const timer = setTimeout(() => {
       try {
         nvlRef.current?.fit?.(nvlNodes.map((n) => n.id), { animated: true });
       } catch { /* noop */ }
-    }, 400);
+    }, 450);
     return () => clearTimeout(timer);
-  }, [NVL, nvlNodes]);
+  }, [NVL, nvlNodes.length]); // only on mount / node-count change, not on selection
 
   const handleNodeClick = useCallback(
     (nvlNode: { id: string }) => {
@@ -129,15 +150,19 @@ export default function GraphCanvas({ nodes, edges, isLoading }: GraphCanvasProp
     [nodeMap]
   );
 
-  const handleCanvasClick = useCallback(() => {
-    setSelectedNode(null);
-  }, []);
+  const handleCanvasClick = useCallback(() => setSelectedNode(null), []);
+
+  const handleFit = useCallback(() => {
+    try {
+      nvlRef.current?.fit?.(nvlNodes.map((n) => n.id), { animated: true });
+    } catch { /* noop */ }
+  }, [nvlNodes]);
 
   const isEmpty = nodes.length === 0 && edges.length === 0;
 
   if (isLoading) {
     return (
-      <div className="absolute inset-0 flex items-center justify-center bg-[#0F172A] rounded-xl">
+      <div className="absolute inset-0 flex items-center justify-center bg-[#0B1120] rounded-xl">
         <div className="grid grid-cols-4 gap-3 p-8 w-full max-w-md">
           {Array.from({ length: 12 }).map((_, i) => (
             <div
@@ -153,7 +178,7 @@ export default function GraphCanvas({ nodes, edges, isLoading }: GraphCanvasProp
 
   if (isEmpty) {
     return (
-      <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#0F172A] rounded-xl gap-4">
+      <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#0B1120] rounded-xl gap-4">
         <Music2 size={48} className="text-[#475569]" aria-hidden="true" />
         <p className="text-[#94A3B8] text-sm">No graph to visualize</p>
       </div>
@@ -166,7 +191,7 @@ export default function GraphCanvas({ nodes, edges, isLoading }: GraphCanvasProp
 
   if (!NVL) {
     return (
-      <div className="absolute inset-0 flex items-center justify-center bg-[#0F172A] rounded-xl">
+      <div className="absolute inset-0 flex items-center justify-center bg-[#0B1120] rounded-xl">
         <div className="w-6 h-6 border-2 border-[#22C55E] border-t-transparent rounded-full animate-spin" />
       </div>
     );
@@ -175,12 +200,8 @@ export default function GraphCanvas({ nodes, edges, isLoading }: GraphCanvasProp
   const props = selectedNode ? Object.entries(selectedNode.properties) : [];
 
   return (
-    <div
-      className="absolute inset-0 bg-[#0F172A] rounded-xl overflow-hidden"
-      style={{
-        background: "radial-gradient(ellipse at center, rgba(34,197,94,0.04) 0%, #0F172A 70%)",
-      }}
-    >
+    <div className="absolute inset-0 rounded-xl overflow-hidden bg-[#0B1120]">
+      {/* Accessibility: screen-reader adjacency list */}
       <details className="sr-only">
         <summary>Graph adjacency list</summary>
         <ul>
@@ -190,7 +211,8 @@ export default function GraphCanvas({ nodes, edges, isLoading }: GraphCanvasProp
         </ul>
       </details>
 
-      <div style={{ position: "absolute", inset: 0 }}>
+      {/* NVL canvas */}
+      <div className="absolute inset-0 z-[1]">
         <NVL
           ref={nvlRef}
           nodes={nvlNodes}
@@ -199,6 +221,8 @@ export default function GraphCanvas({ nodes, edges, isLoading }: GraphCanvasProp
           nvlOptions={{
             allowDynamicMinZoom: true,
             initialZoom: 0.7,
+            minZoom: 0.05,
+            maxZoom: 8,
             disableTelemetry: true,
             useWebGL: true,
           }}
@@ -224,21 +248,57 @@ export default function GraphCanvas({ nodes, edges, isLoading }: GraphCanvasProp
         />
       </div>
 
-      {/* Node inspector panel */}
-      {selectedNode && (
-        <div className="absolute top-3 left-3 z-20 w-56 bg-[#0F172A]/95 border border-[#334155] rounded-xl shadow-xl backdrop-blur-sm overflow-hidden">
+      {/* Subtle dot-grid texture layered over canvas — never blocks pointer events */}
+      <div
+        aria-hidden="true"
+        className="absolute inset-0 z-[2] pointer-events-none rounded-xl"
+        style={{
+          backgroundImage: "radial-gradient(rgba(148,163,184,0.055) 1px, transparent 1px)",
+          backgroundSize: "28px 28px",
+        }}
+      />
+
+      {/* Radial glow at centre */}
+      <div
+        aria-hidden="true"
+        className="absolute inset-0 z-[2] pointer-events-none rounded-xl"
+        style={{
+          background:
+            "radial-gradient(ellipse 65% 55% at 50% 50%, rgba(34,197,94,0.045) 0%, transparent 70%)",
+        }}
+      />
+
+      {/* Node inspector — slides in from the left */}
+      <div
+        className="absolute top-3 left-3 z-[20] w-56 rounded-xl shadow-2xl overflow-hidden"
+        style={{
+          transition: "opacity 180ms ease, transform 180ms ease",
+          opacity: selectedNode ? 1 : 0,
+          transform: selectedNode ? "translateX(0)" : "translateX(-6px)",
+          pointerEvents: selectedNode ? "auto" : "none",
+        }}
+      >
+        <div className="bg-[#0F172A]/95 border border-[#334155] rounded-xl backdrop-blur-md overflow-hidden">
           {/* Header */}
           <div
             className="flex items-center justify-between px-3 py-2 border-b border-[#1E293B]"
-            style={{ borderLeftColor: getNodeColor(selectedNode.label), borderLeftWidth: 3 }}
+            style={{
+              borderLeftColor: selectedNode ? getNodeColor(selectedNode.label) : "transparent",
+              borderLeftWidth: 3,
+            }}
           >
             <div className="flex items-center gap-2 min-w-0">
               <span
                 className="shrink-0 w-2.5 h-2.5 rounded-full"
-                style={{ backgroundColor: getNodeColor(selectedNode.label) }}
+                style={{
+                  backgroundColor: selectedNode ? getNodeColor(selectedNode.label) : "transparent",
+                  boxShadow: selectedNode
+                    ? `0 0 6px ${getNodeColor(selectedNode.label)}80`
+                    : "none",
+                }}
               />
               <span className="text-xs font-bold text-[#F8FAFC] truncate">
-                {selectedNode.label}
+                {selectedNode?.label}
               </span>
             </div>
             <button
@@ -272,30 +332,34 @@ export default function GraphCanvas({ nodes, edges, isLoading }: GraphCanvasProp
             )}
           </div>
         </div>
-      )}
+      </div>
 
       {/* Legend */}
-      <div className="absolute bottom-3 left-3 bg-[#1E293B]/90 backdrop-blur-sm rounded-lg px-3 py-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-[#CBD5E1] border border-[#334155]/50 z-10">
+      <div className="absolute bottom-3 left-3 z-[20] bg-[#0F172A]/90 backdrop-blur-sm rounded-lg px-3 py-2 flex flex-wrap gap-x-3 gap-y-1 border border-[#1E293B]">
         {Object.entries(NODE_COLORS).map(([label, color]) => (
-          <span key={label} className="flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: color }} aria-hidden="true" />
+          <span key={label} className="flex items-center gap-1.5 text-xs text-[#94A3B8]">
+            <span
+              className="w-2 h-2 rounded-full"
+              aria-hidden="true"
+              style={{
+                backgroundColor: color,
+                boxShadow: `0 0 4px ${color}80`,
+              }}
+            />
             {label}
           </span>
         ))}
       </div>
 
-      {/* Fit-to-view button */}
+      {/* Fit-to-view control */}
       <button
         type="button"
-        onClick={() => {
-          try {
-            nvlRef.current?.fit?.(nvlNodes.map((n) => n.id), { animated: true });
-          } catch { /* noop */ }
-        }}
-        className="absolute top-3 right-3 bg-[#1E293B]/90 hover:bg-[#334155] border border-[#334155]/50 text-[#CBD5E1] hover:text-[#F8FAFC] text-xs px-2.5 py-1.5 rounded-lg backdrop-blur-sm transition-colors z-10"
+        onClick={handleFit}
+        className="absolute top-3 right-3 z-[20] flex items-center gap-1.5 bg-[#0F172A]/90 hover:bg-[#1E293B] border border-[#1E293B] hover:border-[#334155] text-[#94A3B8] hover:text-[#F8FAFC] text-xs px-2.5 py-1.5 rounded-lg backdrop-blur-sm transition-all duration-150"
         aria-label="Fit graph to view"
       >
-        Fit to view
+        <Maximize2 size={12} aria-hidden="true" />
+        Fit
       </button>
     </div>
   );
@@ -311,7 +375,7 @@ function FallbackTable({
   error: string;
 }) {
   return (
-    <div className="absolute inset-0 overflow-auto bg-[#0F172A] rounded-xl p-4">
+    <div className="absolute inset-0 overflow-auto bg-[#0B1120] rounded-xl p-4">
       <p className="text-amber-400 text-xs mb-3 font-mono">
         Graph renderer unavailable: {error}
       </p>

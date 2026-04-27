@@ -26,9 +26,9 @@ const GraphCanvas = dynamic(() => import("@/components/GraphCanvas"), {
 });
 
 export default function HomePage() {
-  const { userKey, setUserKey } = useUserKey();
+  const { userKey, userProvider, setCredentials } = useUserKey();
   const isPhone = useIsPhone();
-  const { state, submit } = useQuery({ userKey });
+  const { state, submit } = useQuery({ userKey, userProvider });
 
   const [modalOpen, setModalOpen] = useState(false);
   const [modalError, setModalError] = useState<string | null>(null);
@@ -88,8 +88,8 @@ export default function HomePage() {
   );
 
   const handleModalSave = useCallback(
-    async (key: string) => {
-      setUserKey(key);
+    async (key: string, provider: import("@/lib/gemini").Provider) => {
+      setCredentials(key, provider);
       setModalOpen(false);
       setModalError(null);
 
@@ -102,7 +102,7 @@ export default function HomePage() {
         setPendingQuestion(null);
       }
     },
-    [pendingQuestion, setUserKey, submit]
+    [pendingQuestion, setCredentials, submit]
   );
 
   const handleUseOllama = useCallback(() => {

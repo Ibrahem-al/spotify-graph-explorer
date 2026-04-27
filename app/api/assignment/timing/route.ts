@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getDriver } from "@/lib/neo4j";
 import { getTask } from "@/lib/assignment/tasks";
+import { checkRateLimit, getIP } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -12,6 +13,9 @@ const BodySchema = z.object({
 });
 
 export async function POST(req: Request) {
+  const limited = checkRateLimit("timing", getIP(req));
+  if (limited) return limited;
+
   let body: unknown;
   try {
     body = await req.json();

@@ -1,4 +1,7 @@
 import OpenAI from "openai";
+import { GoogleGenAI } from "@google/genai";
+
+export type Provider = "groq" | "openai" | "gemini";
 
 const GROQ_BASE_URL = "https://api.groq.com/openai/v1";
 const DEFAULT_MODEL = "llama-3.3-70b-versatile";
@@ -122,4 +125,78 @@ export async function generateCypher(opts: {
   }
 
   return { cypher: parsed.cypher, rationale: parsed.rationale };
+}
+
+async function generateCypherOpenAI(opts: {
+  question: string;
+  apiKey: string;
+}): Promise<{ cypher: string; rationale: string }> {
+  const client = new OpenAI({ apiKey: opts.apiKey });
+
+  const response = await client.chat.completions.create({
+    model: "gpt-4o-mini",
+    messages: [
+      { role: "system", content: SCHEMA_BLOCK },
+      { role: "user", content: opts.question },
+    ],
+    response_format: { type: "json_object" },
+    temperature: 0.1,
+    max_tokens: 800,
+  });
+
+  const text = response.choices[0]?.message?.content ?? "";
+  let parsed: { cypher: string; rationale: string };
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    throw new Error(`OpenAI returned non-JSON output: ${text.slice(0, 200)}`);
+  }
+  if (!parsed.cypher || !parsed.rationale) {
+    throw new Error("OpenAI response missing cypher or rationale fields.");
+  }
+  return { cypher: parsed.cypher, rationale: parsed.rationale };
+}
+
+async function generateCypherGemini(opts: {
+  question: string;
+  apiKey: string;
+}): Promise<{ cypher: string; rationale: string }> {
+  const ai = new GoogleGenAI({ apiKey: opts.apiKey });
+
+  const response = await ai.models.generateContent({
+    model: "gemini-2.0-flash",
+    config: {
+      systemInstruction: SCHEMA_BLOCK,
+      responseMimeType: "application/json",
+    },
+    contents: opts.question,
+  });
+
+  const text = response.text ?? "";
+  let parsed: { cypher: string; rationale: string };
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    throw new Error(`Gemini returned non-JSON output: ${text.slice(0, 200)}`);
+  }
+  if (!parsed.cypher || !parsed.rationale) {
+    throw new Error("Gemini response missing cypher or rationale fields.");
+  }
+  return { cypher: parsed.cypher, rationale: parsed.rationale };
+}
+
+export async function generateCypherWithProvider(opts: {
+  question: string;
+  apiKey: string;
+  provider: Provider;
+}): Promise<{ cypher: string; rationale: string }> {
+  switch (opts.provider) {
+    case "openai":
+      return generateCypherOpenAI({ question: opts.question, apiKey: opts.apiKey });
+    case "gemini":
+      return generateCypherGemini({ question: opts.question, apiKey: opts.apiKey });
+    case "groq":
+    default:
+      return generateCypher({ question: opts.question, apiKey: opts.apiKey });
+  }
 }

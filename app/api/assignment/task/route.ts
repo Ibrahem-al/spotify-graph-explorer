@@ -4,6 +4,7 @@ import { getDriver } from "@/lib/neo4j";
 import { getTask, type TaskDefinition } from "@/lib/assignment/tasks";
 import { isInt } from "neo4j-driver";
 import type { Integer } from "neo4j-driver";
+import { checkRateLimit, getIP } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -106,6 +107,9 @@ async function simulateWrite(task: TaskDefinition): Promise<{
 }
 
 export async function POST(req: Request) {
+  const limited = checkRateLimit("task", getIP(req));
+  if (limited) return limited;
+
   let body: unknown;
   try {
     body = await req.json();
