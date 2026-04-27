@@ -41,6 +41,7 @@ const endpointLimiters = {
   clean:      makeLimiter(5,   60_000), // spawns a Python subprocess
   csvPreview: makeLimiter(120, 60_000), // static file read
   health:     makeLimiter(30,  60_000), // DB ping
+  recommend:  makeLimiter(10,  60_000), // multiple Spotify API calls + Neo4j query
 } as const;
 
 export type EndpointKey = keyof typeof endpointLimiters;

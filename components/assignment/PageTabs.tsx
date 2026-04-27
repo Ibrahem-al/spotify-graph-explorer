@@ -2,10 +2,10 @@
 
 import Link from "next/link";
 import { clsx } from "clsx";
-import { Sparkles, GraduationCap } from "lucide-react";
+import { Sparkles, GraduationCap, Wand2 } from "lucide-react";
 
 interface PageTabsProps {
-  current: "explorer" | "assignment";
+  current: "explorer" | "assignment" | "recommend";
 }
 
 export function PageTabs({ current }: PageTabsProps) {
@@ -20,6 +20,12 @@ export function PageTabs({ current }: PageTabsProps) {
         active={current === "explorer"}
         icon={<Sparkles size={14} aria-hidden="true" className="shrink-0" />}
         label="Explorer"
+      />
+      <TabLink
+        href="/recommend"
+        active={current === "recommend"}
+        icon={<Wand2 size={14} aria-hidden="true" className="shrink-0" />}
+        label="Recommend"
       />
       <TabLink
         href="/assignment"
