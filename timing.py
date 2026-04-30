@@ -4,14 +4,14 @@ from neo4j import GraphDatabase
 
 random.seed(42)
 
-# connection
-URI      = "bolt://localhost:7687"
-AUTH     = ("neo4j", "12345678")
-DB_NAME  = "neo4j"
+# Connection
+URI     = "bolt://localhost:7687"
+AUTH    = ("neo4j", "12345678")
+DB_NAME = "neo4j"
 
 driver = GraphDatabase.driver(URI, auth=AUTH)
 
-# quries
+# Queries
 tasks = [
     {
         "id": 1,
@@ -95,30 +95,54 @@ tasks = [
 ]
 
 RUNS = 10
+output_lines = []  # Collect everything for Solutions.txt
 
-# timing loop
 with driver.session(database=DB_NAME) as session:
     for task in tasks:
-        print(f"\n{'='*60}")
-        print(f"Task {task['id']}: {task['title']}")
-        print('='*60)
+        header = f"{'='*60}\nTask {task['id']}: {task['title']}\n{'='*60}"
+        print(f"\n{header}")
+        output_lines.append(header)
+
+        # Write the query to output
+        query_block = f"\nCypher Query:\n{task['query'].strip()}"
+        output_lines.append(query_block)
+
+        # Warmup run — primes the connection and session, not timed
+        if task.get("reset_query"):
+            session.run(task["reset_query"])
+        session.run(task["query"]).data()
 
         times = []
         for i in range(RUNS):
+            # Clear query plan cache so every run starts from the same cold state
+            session.run("CALL db.clearQueryCaches()")
+
             # Reset artist name before each run of Task 5
             if task.get("reset_query"):
                 session.run(task["reset_query"])
 
             start = time.perf_counter()
             session.run(task["query"]).data()
-            end   = time.perf_counter()
+            end = time.perf_counter()
 
             run_time = end - start
             times.append(run_time)
-            print(f"  Run {i+1:>2}: {run_time:.6f} seconds")
+
+            line = f"  Run {i+1:>2}: {run_time:.6f} seconds"
+            print(line)
+            output_lines.append(line)
 
         avg = sum(times) / len(times)
-        print(f"\n  Average execution time: {avg:.6f} seconds")
+        avg_line = f"\n  Average execution time: {avg:.6f} seconds"
+        print(avg_line)
+        output_lines.append(avg_line)
+        output_lines.append("")  # blank line between tasks
 
 driver.close()
 print("\nDone.")
+
+# Write Solutions.txt
+with open("Solutions.txt", "w", encoding="utf-8") as f:
+    f.write("\n".join(output_lines))
+
+print("Results saved to Solutions.txt")
