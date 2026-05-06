@@ -17,7 +17,6 @@ interface PlaylistMeta {
 
 interface Profile {
   avgDanceability: number;
-  avgEnergy: number;
   avgValence: number;
   avgAcousticness: number;
   avgTempo: number;
@@ -42,7 +41,6 @@ interface Recommendation {
   danceability: number;
   valence: number;
   acousticness: number;
-  energy: number;
   popularity: number;
   genres: string[];
   score: number;
@@ -443,7 +441,6 @@ export default function RecommendPage() {
                     </div>
                     <div className="flex flex-col gap-3">
                       <FeatureBar label="Danceability" value={result.profile.avgDanceability} color="#22C55E" />
-                      <FeatureBar label="Energy"       value={result.profile.avgEnergy}       color="#FB923C" />
                       <FeatureBar label="Happiness"    value={result.profile.avgValence}      color="#F472B6" />
                       <FeatureBar label="Acousticness" value={result.profile.avgAcousticness} color="#60A5FA" />
                     </div>
@@ -527,9 +524,9 @@ function RecommendCard({
           )}
         </div>
         <div className="hidden sm:flex flex-col gap-1.5 w-24 shrink-0">
-          <MiniBar label="Dance"  value={rec.danceability} color="#22C55E" />
-          <MiniBar label="Energy" value={rec.energy}        color="#FB923C" />
-          <MiniBar label="Mood"   value={rec.valence}       color="#F472B6" />
+          <MiniBar label="Dance" value={rec.danceability} color="#22C55E" />
+          <MiniBar label="Mood"  value={rec.valence}       color="#F472B6" />
+          <MiniBar label="Acoustic" value={rec.acousticness} color="#60A5FA" />
         </div>
         <div className="flex flex-col items-end gap-2 shrink-0">
           <span className={clsx("text-[11px] px-2 py-0.5 rounded-full font-medium", reason.color)}>

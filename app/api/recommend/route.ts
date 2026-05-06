@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { isInt } from "neo4j-driver";
+import { isInt, int } from "neo4j-driver";
 import type { Integer } from "neo4j-driver";
 import { parsePlaylistId, scrapePublicPlaylist } from "@/lib/spotify";
 import { analyzeMusicTaste } from "@/lib/gemini";
@@ -61,7 +61,6 @@ OPTIONAL MATCH (t)-[:HAS_GENRE]->(g:Genre)
 WITH t, collect(DISTINCT toLower(g.name)) AS genres
 RETURN
   t.danceability AS danceability,
-  t.energy       AS energy,
   t.valence      AS valence,
   t.acousticness AS acousticness,
   t.tempo        AS tempo,
@@ -76,14 +75,12 @@ WHERE NOT t.track_id IN $excludeIds
   AND t.danceability >= $minDance    AND t.danceability <= $maxDance
   AND t.valence      >= $minValence  AND t.valence      <= $maxValence
   AND t.acousticness >= $minAcoustic AND t.acousticness <= $maxAcoustic
-  AND t.energy       >= $minEnergy   AND t.energy       <= $maxEnergy
 WITH t, a,
   CASE WHEN toLower(a.name) IN $knownArtists THEN 1 ELSE 0 END AS isKnownArtist,
-  (1.0 - abs(t.danceability  - $avgDance))    * 0.20 +
-  (1.0 - abs(t.valence       - $avgValence))  * 0.20 +
-  (1.0 - abs(t.acousticness  - $avgAcoustic)) * 0.15 +
-  (1.0 - abs(t.energy        - $avgEnergy))   * 0.15 +
-  toFloat(t.popularity) / 100.0               * 0.10 AS audioPopScore
+  (1.0 - abs(t.danceability  - $avgDance))    * 0.30 +
+  (1.0 - abs(t.valence       - $avgValence))  * 0.30 +
+  (1.0 - abs(t.acousticness  - $avgAcoustic)) * 0.25 +
+  toFloat(t.popularity) / 100.0               * 0.15 AS audioPopScore
 OPTIONAL MATCH (t)-[:HAS_GENRE]->(g:Genre)
 WITH t, a, isKnownArtist, audioPopScore, collect(DISTINCT g.name) AS genres
 WITH t, a, genres, isKnownArtist, audioPopScore,
@@ -100,7 +97,6 @@ RETURN
   t.danceability  AS danceability,
   t.valence       AS valence,
   t.acousticness  AS acousticness,
-  t.energy        AS energy,
   t.popularity    AS popularity,
   genres,
   round(totalScore * 100) / 100 AS score,
@@ -119,7 +115,7 @@ LIMIT 500
 
 type RecRow = {
   id: string; name: string; artist: string;
-  danceability: number; valence: number; acousticness: number; energy: number;
+  danceability: number; valence: number; acousticness: number;
   popularity: number; genres: string[]; score: number;
   matchReason: "spotify" | "artist" | "genre" | "audio";
 };
@@ -163,7 +159,6 @@ function mapRec(r: import("neo4j-driver").Record): RecRow {
     danceability: r2(coerceNum(r.get("danceability"))),
     valence:      r2(coerceNum(r.get("valence"))),
     acousticness: r2(coerceNum(r.get("acousticness"))),
-    energy:       r2(coerceNum(r.get("energy"))),
     popularity:   coerceNum(r.get("popularity")),
     genres:       (r.get("genres") as string[]) ?? [],
     score:        r2(coerceNum(r.get("score"))),
@@ -266,19 +261,16 @@ export async function POST(req: Request) {
       const fillResult = await session.executeRead(tx =>
         tx.run(FILL_CYPHER, {
           excludeIds:   [],
-          fillCount:    TOTAL_RECS,
+          fillCount:    int(TOTAL_RECS),
           minDance:     Math.max(0, tasteProfile.danceability - FEATURE_TOLERANCE),
           maxDance:     Math.min(1, tasteProfile.danceability + FEATURE_TOLERANCE),
           minValence:   Math.max(0, tasteProfile.valence      - FEATURE_TOLERANCE),
           maxValence:   Math.min(1, tasteProfile.valence      + FEATURE_TOLERANCE),
           minAcoustic:  Math.max(0, tasteProfile.acousticness - FEATURE_TOLERANCE),
           maxAcoustic:  Math.min(1, tasteProfile.acousticness + FEATURE_TOLERANCE),
-          minEnergy:    Math.max(0, tasteProfile.energy       - FEATURE_TOLERANCE),
-          maxEnergy:    Math.min(1, tasteProfile.energy       + FEATURE_TOLERANCE),
           avgDance:     tasteProfile.danceability,
           avgValence:   tasteProfile.valence,
           avgAcoustic:  tasteProfile.acousticness,
-          avgEnergy:    tasteProfile.energy,
           knownArtists,
           knownGenres,
         })
@@ -296,7 +288,6 @@ export async function POST(req: Request) {
         },
         profile: {
           avgDanceability: r2(tasteProfile.danceability),
-          avgEnergy:       r2(tasteProfile.energy),
           avgValence:      r2(tasteProfile.valence),
           avgAcousticness: r2(tasteProfile.acousticness),
           avgTempo:        Math.round(tasteProfile.tempo),
@@ -350,7 +341,6 @@ export async function POST(req: Request) {
 
     const recs = profileResult.records;
     const avgDance   = mean(recs.map(r => coerceNum(r.get("danceability"))));
-    const avgEnergy  = mean(recs.map(r => coerceNum(r.get("energy"))));
     const avgValence = mean(recs.map(r => coerceNum(r.get("valence"))));
     const avgAcoustic = mean(recs.map(r => coerceNum(r.get("acousticness"))));
     const avgTempo   = mean(recs.map(r => coerceNum(r.get("tempo"))));
@@ -388,12 +378,9 @@ export async function POST(req: Request) {
         maxValence:   Math.min(1, avgValence  + FEATURE_TOLERANCE),
         minAcoustic:  Math.max(0, avgAcoustic - FEATURE_TOLERANCE),
         maxAcoustic:  Math.min(1, avgAcoustic + FEATURE_TOLERANCE),
-        minEnergy:    Math.max(0, avgEnergy   - FEATURE_TOLERANCE),
-        maxEnergy:    Math.min(1, avgEnergy   + FEATURE_TOLERANCE),
         avgDance,
         avgValence,
         avgAcoustic,
-        avgEnergy,
         knownArtists,
         knownGenres: topGenres,
       })
@@ -416,7 +403,6 @@ export async function POST(req: Request) {
       },
       profile: {
         avgDanceability: r2(avgDance),
-        avgEnergy:       r2(avgEnergy),
         avgValence:      r2(avgValence),
         avgAcousticness: r2(avgAcoustic),
         avgTempo:        Math.round(avgTempo),
