@@ -133,12 +133,12 @@ export async function POST(req: Request) {
     if (msg === "PLAYLIST_NOT_FOUND") {
       return NextResponse.json({ error: "PLAYLIST_NOT_FOUND", message: "Playlist not found. Double-check the URL and make sure the playlist is set to Public in Spotify (open the playlist → ··· → Make public)." }, { status: 404 });
     }
-    if (msg === "PLAYLIST_PRIVATE") {
-      return NextResponse.json({ error: "PLAYLIST_PRIVATE", message: "That playlist is private. In Spotify, open the playlist → tap ··· (or right-click) → Make public, then try again." }, { status: 403 });
-    }
-    if (msg.startsWith("PLAYLIST_RESTRICTED:")) {
-      const detail = msg.slice("PLAYLIST_RESTRICTED:".length);
-      return NextResponse.json({ error: "PLAYLIST_RESTRICTED", message: `Spotify denied access to this playlist: ${detail}. Make sure it is set to Public.` }, { status: 403 });
+    if (msg.startsWith("PLAYLIST_PRIVATE:")) {
+      const spotifyDetail = msg.slice("PLAYLIST_PRIVATE:".length);
+      return NextResponse.json({
+        error: "PLAYLIST_PRIVATE",
+        message: `Spotify returned: "${spotifyDetail}". If the playlist is public, try opening it in an incognito window without logging in — if it loads, the issue may be with the Spotify app credentials on this server. Otherwise make the playlist public: open it → ··· → Make public.`,
+      }, { status: 403 });
     }
     return NextResponse.json({ error: "SPOTIFY_ERROR", message: msg }, { status: 502 });
   }

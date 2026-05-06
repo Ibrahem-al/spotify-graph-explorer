@@ -76,14 +76,10 @@ export async function fetchPlaylist(playlistId: string): Promise<{
   });
   if (infoRes.status === 404) throw new Error("PLAYLIST_NOT_FOUND");
   if (infoRes.status === 403) {
-    // Read Spotify's error body; if it explicitly says "private" keep that label,
-    // otherwise surface the raw Spotify message so the caller can be more precise.
+    // Always surface the raw Spotify error message so callers can diagnose.
     const errBody = await infoRes.json().catch(() => null) as { error?: { message?: string } } | null;
-    const spotifyMsg = errBody?.error?.message ?? "";
-    if (spotifyMsg && !/private|forbidden/i.test(spotifyMsg)) {
-      throw new Error(`PLAYLIST_RESTRICTED:${spotifyMsg}`);
-    }
-    throw new Error("PLAYLIST_PRIVATE");
+    const spotifyMsg = errBody?.error?.message ?? "Forbidden";
+    throw new Error(`PLAYLIST_PRIVATE:${spotifyMsg}`);
   }
   if (!infoRes.ok) throw new Error(`SPOTIFY_ERROR:${infoRes.status}`);
   const info = await infoRes.json();
