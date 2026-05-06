@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useRef } from "react";
-import { Music2, Sparkles, ArrowRight, ListMusic, Users, Wand2, Play, ChevronUp } from "lucide-react";
+import { Music2, Sparkles, ArrowRight, ListMusic, Users, Wand2, Play, ChevronUp, Mic2 } from "lucide-react";
 import { clsx } from "clsx";
 import { PageTabs } from "@/components/assignment/PageTabs";
 
@@ -102,30 +102,32 @@ function GenrePill({ genre }: { genre: string }) {
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function RecommendPage() {
-  const [url, setUrl] = useState("");
-  const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
-  const [result, setResult] = useState<RecommendResult | null>(null);
+  const [url, setUrl]           = useState("");
+  const [artistInput, setArtistInput] = useState("");
+  const [status, setStatus]     = useState<"idle" | "loading" | "success" | "error" | "needs_manual">("idle");
+  const [result, setResult]     = useState<RecommendResult | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [playingId, setPlayingId] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const artistRef = useRef<HTMLInputElement>(null);
 
-  const handleSubmit = useCallback(async (e?: React.FormEvent) => {
-    e?.preventDefault();
-    const trimmed = url.trim();
-    if (!trimmed) return;
-
+  const submit = useCallback(async (body: Record<string, unknown>) => {
     setStatus("loading");
     setErrorMsg(null);
-
     try {
-      const res = await fetch("/api/recommend", {
+      const res  = await fetch("/api/recommend", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: trimmed }),
+        body: JSON.stringify(body),
       });
       const data = await res.json();
 
       if (!res.ok) {
+        if (data?.error === "NEEDS_MANUAL_INPUT") {
+          setErrorMsg(data.message ?? null);
+          setStatus("needs_manual");
+          return;
+        }
         setErrorMsg(data?.message ?? "Something went wrong. Try again.");
         setStatus("error");
         return;
@@ -137,7 +139,24 @@ export default function RecommendPage() {
       setErrorMsg("Network error. Check your connection and try again.");
       setStatus("error");
     }
-  }, [url]);
+  }, []);
+
+  const handleUrlSubmit = useCallback((e?: React.FormEvent) => {
+    e?.preventDefault();
+    const trimmed = url.trim();
+    if (!trimmed) return;
+    submit({ url: trimmed });
+  }, [url, submit]);
+
+  const handleManualSubmit = useCallback((e?: React.FormEvent) => {
+    e?.preventDefault();
+    const artists = artistInput
+      .split(",")
+      .map(s => s.trim())
+      .filter(Boolean);
+    if (artists.length === 0) return;
+    submit({ artists, url: url.trim() || undefined });
+  }, [artistInput, url, submit]);
 
   return (
     <div className="flex flex-col min-h-screen bg-[#0F172A] text-[#F8FAFC]">
@@ -154,14 +173,14 @@ export default function RecommendPage() {
             </div>
           </div>
           <PageTabs current="recommend" />
-          <div className="w-20 shrink-0" /> {/* spacer */}
+          <div className="w-20 shrink-0" />
         </div>
       </header>
 
       <main className="flex-1 overflow-y-auto">
         <div className="max-w-5xl mx-auto px-4 py-8">
 
-          {/* ── Idle / URL form ── */}
+          {/* ── URL form (idle / error) ── */}
           {(status === "idle" || status === "error") && (
             <div className="flex flex-col items-center text-center gap-6 py-8 sm:py-14">
               <div className="w-16 h-16 rounded-2xl bg-[#22C55E]/15 flex items-center justify-center">
@@ -171,11 +190,11 @@ export default function RecommendPage() {
                 <h2 className="text-2xl font-bold tracking-tight mb-2">Playlist recommender</h2>
                 <p className="text-[#94A3B8] text-[15px] leading-relaxed">
                   Paste any public Spotify playlist. We'll analyse its sound profile and find
-                  30 tracks from our graph that match your taste.
+                  15 tracks from our graph that match your taste.
                 </p>
               </div>
 
-              <form onSubmit={handleSubmit} className="w-full max-w-xl flex flex-col gap-3">
+              <form onSubmit={handleUrlSubmit} className="w-full max-w-xl flex flex-col gap-3">
                 <div className="flex gap-2">
                   <input
                     ref={inputRef}
@@ -202,7 +221,6 @@ export default function RecommendPage() {
                     <span className="hidden sm:inline">Analyse</span>
                   </button>
                 </div>
-
                 {status === "error" && errorMsg && (
                   <p className="text-sm text-red-400 text-left">{errorMsg}</p>
                 )}
@@ -211,9 +229,9 @@ export default function RecommendPage() {
               {/* How it works */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full max-w-xl mt-2">
                 {[
-                  { icon: <ListMusic size={16} />, title: "Fetch playlist", body: "We pull your tracks and audio features from the Spotify API." },
-                  { icon: <Sparkles size={16} />, title: "Spotify refines your taste", body: "Spotify's recommendation engine sharpens your audio profile using its own ML model." },
-                  { icon: <Music2 size={16} />, title: "Match in the graph", body: "Neo4j finds 30 tracks that fit the refined sound, even if yours aren't in the DB." },
+                  { icon: <ListMusic size={16} />, title: "Fetch playlist",      body: "We read your public playlist directly from Spotify's web page." },
+                  { icon: <Sparkles   size={16} />, title: "Build taste profile", body: "We match your tracks against the graph to learn your audio preferences." },
+                  { icon: <Music2     size={16} />, title: "Match in the graph",  body: "Neo4j finds 15 tracks that fit your sound — even if yours aren't in the DB." },
                 ].map((s, i) => (
                   <div key={i} className="bg-[#0B1120] border border-[#1E293B] rounded-xl p-4 text-left">
                     <div className="text-[#22C55E] mb-2">{s.icon}</div>
@@ -225,6 +243,54 @@ export default function RecommendPage() {
             </div>
           )}
 
+          {/* ── Manual fallback ── */}
+          {status === "needs_manual" && (
+            <div className="flex flex-col items-center text-center gap-6 py-8 sm:py-14">
+              <div className="w-16 h-16 rounded-2xl bg-[#F472B6]/15 flex items-center justify-center">
+                <Mic2 className="text-[#F472B6]" size={28} />
+              </div>
+              <div className="max-w-lg">
+                <h2 className="text-2xl font-bold tracking-tight mb-2">Tell us your taste</h2>
+                <p className="text-[#94A3B8] text-[15px] leading-relaxed">
+                  {errorMsg ?? "We couldn't read that playlist automatically. Enter some artists you like and we'll find tracks that match your vibe."}
+                </p>
+              </div>
+
+              <form onSubmit={handleManualSubmit} className="w-full max-w-xl flex flex-col gap-3">
+                <div className="flex gap-2">
+                  <input
+                    ref={artistRef}
+                    type="text"
+                    value={artistInput}
+                    onChange={(e) => setArtistInput(e.target.value)}
+                    placeholder="e.g. Drake, The Weeknd, SZA, Kendrick Lamar"
+                    className="flex-1 px-4 py-3 rounded-xl text-sm bg-[#0B1120] border border-[#334155] text-[#F8FAFC] placeholder-[#475569] focus:outline-none focus:ring-2 focus:ring-[#F472B6]"
+                  />
+                  <button
+                    type="submit"
+                    disabled={!artistInput.trim()}
+                    className={clsx(
+                      "shrink-0 flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-medium transition-colors",
+                      "bg-[#F472B6] hover:bg-[#EC4899] text-white",
+                      "disabled:opacity-40 disabled:cursor-not-allowed"
+                    )}
+                  >
+                    <ArrowRight size={16} />
+                    <span className="hidden sm:inline">Find</span>
+                  </button>
+                </div>
+                <p className="text-xs text-[#475569] text-left">Separate artists with commas. The more you add, the better the profile.</p>
+              </form>
+
+              <button
+                onClick={() => { setStatus("idle"); setErrorMsg(null); }}
+                className="text-xs text-[#475569] hover:text-[#94A3B8] underline underline-offset-2"
+              >
+                ← Try a different playlist URL
+              </button>
+            </div>
+          )}
+
           {/* ── Loading ── */}
           {status === "loading" && (
             <div className="flex flex-col items-center gap-5 py-24">
@@ -233,8 +299,8 @@ export default function RecommendPage() {
                 <div className="absolute inset-0 rounded-full border-2 border-t-[#22C55E] animate-spin" />
               </div>
               <div className="text-center">
-                <p className="text-[#F8FAFC] font-medium">Analysing playlist…</p>
-                <p className="text-xs text-[#64748b] mt-1">Fetching audio features · refining taste with Spotify · querying graph</p>
+                <p className="text-[#F8FAFC] font-medium">Analysing…</p>
+                <p className="text-xs text-[#64748b] mt-1">Building taste profile · querying graph</p>
               </div>
             </div>
           )}
@@ -242,7 +308,6 @@ export default function RecommendPage() {
           {/* ── Results ── */}
           {status === "success" && result && (
             <div className="flex flex-col gap-6">
-              {/* Top bar: playlist identity + re-analyse */}
               <div className="flex items-center justify-between gap-4 flex-wrap">
                 <div className="flex items-center gap-3 min-w-0">
                   {result.playlist.imageUrl ? (
@@ -260,60 +325,33 @@ export default function RecommendPage() {
                   <div className="min-w-0">
                     <p className="font-bold text-[#F8FAFC] truncate">{result.playlist.name}</p>
                     <p className="text-xs text-[#64748b]">
-                      by {result.playlist.owner} · {result.playlist.trackCount} tracks
+                      by {result.playlist.owner} · {result.playlist.trackCount} tracks matched
                     </p>
                   </div>
                 </div>
                 <button
-                  onClick={() => { setStatus("idle"); setResult(null); setUrl(""); }}
+                  onClick={() => { setStatus("idle"); setResult(null); setUrl(""); setArtistInput(""); }}
                   className="shrink-0 text-xs text-[#64748b] hover:text-[#F8FAFC] px-3 py-1.5 rounded-lg border border-[#334155] hover:border-[#475569] transition-colors"
                 >
                   Try another
                 </button>
               </div>
 
-              {/* Main grid: sidebar + recommendations */}
               <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-5">
-
-                {/* ── Sidebar ── */}
+                {/* Sidebar */}
                 <div className="flex flex-col gap-4">
-
-                  {/* Match stats */}
                   <div className="bg-[#0B1120] border border-[#1E293B] rounded-xl p-4">
                     <p className="text-xs font-semibold text-[#64748b] uppercase tracking-wider mb-3">Results</p>
-
-                    {/* Spotify picks vs fill breakdown */}
                     <div className="flex flex-col gap-1.5 mb-3">
                       <div className="flex items-center justify-between text-xs">
-                        <span className="text-[#1DB954]">Spotify picks found</span>
-                        <span className="font-semibold text-[#F8FAFC]">{result.matchStats.spotifyPicksFound}</span>
+                        <span className="text-[#A78BFA]">Recommendations</span>
+                        <span className="font-semibold text-[#F8FAFC]">{result.recommendations.length}</span>
                       </div>
                       <div className="flex items-center justify-between text-xs">
-                        <span className="text-[#A78BFA]">Audio-similarity fill</span>
-                        <span className="font-semibold text-[#F8FAFC]">{result.matchStats.fillCount}</span>
-                      </div>
-                      <div className="h-1.5 bg-[#1E293B] rounded-full overflow-hidden mt-1">
-                        <div
-                          className="h-full bg-[#1DB954] rounded-full"
-                          style={{ width: `${(result.matchStats.spotifyPicksFound / 15) * 100}%` }}
-                        />
+                        <span className="text-[#22C55E]">Tracks matched in graph</span>
+                        <span className="font-semibold text-[#F8FAFC]">{result.matchStats.directMatches}</span>
                       </div>
                     </div>
-
-                    <div className="pt-3 border-t border-[#1E293B]">
-                      <p className="text-xs text-[#64748b] mb-1">Playlist coverage</p>
-                      <div className="flex items-end gap-2 mb-1.5">
-                        <span className="text-lg font-bold text-[#F8FAFC]">{result.matchStats.directMatches}</span>
-                        <span className="text-xs text-[#64748b] mb-0.5">/ {result.matchStats.total} tracks in graph</span>
-                      </div>
-                      <div className="h-1 bg-[#1E293B] rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-[#22C55E] rounded-full"
-                          style={{ width: `${result.matchStats.coveragePercent}%` }}
-                        />
-                      </div>
-                    </div>
-
                     <div className="flex items-start gap-2 text-xs text-[#64748b] leading-relaxed mt-3">
                       <span className="mt-px shrink-0">
                         {result.matchStats.fallbackLevel === "direct" ? "✦" :
@@ -329,19 +367,9 @@ export default function RecommendPage() {
                     )}
                   </div>
 
-                  {/* Audio profile */}
                   <div className="bg-[#0B1120] border border-[#1E293B] rounded-xl p-4">
                     <div className="flex items-center justify-between mb-4">
                       <p className="text-xs font-semibold text-[#64748b] uppercase tracking-wider">Your vibe</p>
-                      {result.profile.profileSource === "spotify" ? (
-                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#22C55E]/10 text-[#22C55E] border border-[#22C55E]/20">
-                          Spotify-refined
-                        </span>
-                      ) : (
-                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#475569]/20 text-[#64748b]">
-                          Playlist avg
-                        </span>
-                      )}
                     </div>
                     <div className="flex flex-col gap-3">
                       <FeatureBar label="Danceability" value={result.profile.avgDanceability} color="#22C55E" />
@@ -364,7 +392,7 @@ export default function RecommendPage() {
                   </div>
                 </div>
 
-                {/* ── Recommendation list ── */}
+                {/* Recommendations */}
                 <div>
                   <p className="text-xs font-semibold text-[#64748b] uppercase tracking-wider mb-3">
                     {result.recommendations.length} recommendations
@@ -381,7 +409,7 @@ export default function RecommendPage() {
                     ))}
                     {result.recommendations.length === 0 && (
                       <div className="text-center py-12 text-[#64748b] text-sm">
-                        No recommendations found for this playlist profile. Try a different playlist.
+                        No recommendations found for this profile. Try a different playlist or artists.
                       </div>
                     )}
                   </div>
@@ -417,12 +445,8 @@ function RecommendCard({
         isPlaying ? "border-[#1DB954]/40" : "border-[#1E293B] hover:border-[#334155]"
       )}
     >
-      {/* Main row */}
       <div className="flex items-center gap-4 px-4 py-3">
-        {/* Rank */}
         <span className="text-xs text-[#475569] w-6 text-right shrink-0 font-mono">{rank}</span>
-
-        {/* Track info */}
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold text-[#F8FAFC] truncate">{rec.name}</p>
           <p className="text-xs text-[#64748b] truncate">{rec.artist}</p>
@@ -432,15 +456,11 @@ function RecommendCard({
             </div>
           )}
         </div>
-
-        {/* Mini feature bars */}
         <div className="hidden sm:flex flex-col gap-1.5 w-24 shrink-0">
           <MiniBar label="Dance"  value={rec.danceability} color="#22C55E" />
           <MiniBar label="Energy" value={rec.energy}        color="#FB923C" />
           <MiniBar label="Mood"   value={rec.valence}       color="#F472B6" />
         </div>
-
-        {/* Popularity + match reason + play button */}
         <div className="flex flex-col items-end gap-2 shrink-0">
           <span className={clsx("text-[11px] px-2 py-0.5 rounded-full font-medium", reason.color)}>
             {reason.label}
@@ -474,7 +494,6 @@ function RecommendCard({
         </div>
       </div>
 
-      {/* Spotify embed — expands when play is toggled */}
       {isPlaying && (
         <div className="border-t border-[#1E293B]">
           <iframe

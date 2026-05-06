@@ -175,6 +175,99 @@ export async function fetchSpotifyRecommendations(
   return (data.tracks ?? []).map((t) => t.id);
 }
 
+// ── Public playlist scraping (no API credentials required) ───────────────────
+
+export interface ScrapedTrack {
+  name: string;
+  artistNames: string[];
+}
+
+export async function scrapePublicPlaylist(playlistId: string): Promise<{
+  name: string;
+  imageUrl: string | null;
+  tracks: ScrapedTrack[];
+}> {
+  const res = await fetch(`https://open.spotify.com/playlist/${playlistId}`, {
+    headers: {
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+      "Accept-Language": "en-US,en;q=0.9",
+    },
+  });
+  if (res.status === 404) throw new Error("PLAYLIST_NOT_FOUND");
+  if (!res.ok) throw new Error("SCRAPE_ERROR");
+
+  const html = await res.text();
+
+  const name = html.match(/<meta property="og:title" content="([^"]+)"/)?.[1]
+    ?.replace(/ \| Spotify$/, "") ?? "Playlist";
+  const imageUrl = html.match(/<meta property="og:image" content="([^"]+)"/)?.[1] ?? null;
+
+  const ndRaw = html.match(/<script id="__NEXT_DATA__"[^>]*>([\s\S]+?)<\/script>/)?.[1];
+  if (!ndRaw) return { name, imageUrl, tracks: [] };
+
+  let root: unknown;
+  try { root = JSON.parse(ndRaw); } catch { return { name, imageUrl, tracks: [] }; }
+
+  return { name, imageUrl, tracks: harvestTracks(root) };
+}
+
+function harvestTracks(root: unknown): ScrapedTrack[] {
+  const found: ScrapedTrack[] = [];
+  walkJson(root, found, 0);
+  return found;
+}
+
+function walkJson(node: unknown, out: ScrapedTrack[], depth: number): void {
+  if (depth > 25 || !node || typeof node !== "object") return;
+  if (Array.isArray(node)) {
+    for (const item of node) {
+      const t = asTrack(item);
+      if (t) out.push(t);
+      else walkJson(item, out, depth + 1);
+    }
+    return;
+  }
+  for (const v of Object.values(node as Record<string, unknown>)) {
+    walkJson(v, out, depth + 1);
+  }
+}
+
+function asTrack(item: unknown): ScrapedTrack | null {
+  if (!item || typeof item !== "object" || Array.isArray(item)) return null;
+  const o = item as Record<string, unknown>;
+
+  if (typeof o.name === "string" && o.name.length > 0 && o.name.length < 300) {
+    const artists = parseArtistNames(o.artists ?? o.artistsWithRoles);
+    if (artists.length > 0) return { name: o.name, artistNames: artists };
+  }
+
+  for (const k of ["track", "data", "trackUnion", "itemV2"]) {
+    if (o[k] && typeof o[k] === "object") {
+      const t = asTrack(o[k]);
+      if (t) return t;
+    }
+  }
+  return null;
+}
+
+function parseArtistNames(v: unknown): string[] {
+  if (Array.isArray(v)) {
+    return v.flatMap((a) => {
+      if (!a || typeof a !== "object") return [];
+      const o = a as Record<string, unknown>;
+      if (typeof o.name === "string" && o.name) return [o.name];
+      const profile = o.profile as Record<string, unknown> | undefined;
+      if (profile && typeof profile.name === "string" && profile.name) return [profile.name];
+      return [];
+    });
+  }
+  if (v && typeof v === "object") {
+    const o = v as Record<string, unknown>;
+    if (Array.isArray(o.items)) return parseArtistNames(o.items);
+  }
+  return [];
+}
+
 export async function fetchArtistGenres(artistIds: string[]): Promise<Map<string, string[]>> {
   if (artistIds.length === 0) return new Map();
   const token = await getAccessToken();
