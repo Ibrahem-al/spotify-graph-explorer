@@ -135,7 +135,6 @@ export default function RecommendPage() {
         // URL scraping failed — switch to artists tab with a hint
         if (data?.error === "NEEDS_MANUAL_INPUT") {
           setErrorMsg(data.message ?? null);
-          setInputMode("artists");
           setStatus("error");
           return;
         }

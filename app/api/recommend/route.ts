@@ -34,6 +34,21 @@ function r2(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
+function levenshtein(a: string, b: string): number {
+  const m = a.length, n = b.length;
+  const dp: number[][] = Array.from({ length: m + 1 }, (_, i) =>
+    Array.from({ length: n + 1 }, (_, j) => (i === 0 ? j : j === 0 ? i : 0))
+  );
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      dp[i][j] = a[i - 1] === b[j - 1]
+        ? dp[i - 1][j - 1]
+        : 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
+    }
+  }
+  return dp[m][n];
+}
+
 const TOTAL_RECS = 15;
 const FEATURE_TOLERANCE = 0.28;
 
@@ -94,12 +109,51 @@ RETURN
        ELSE 'audio' END AS matchReason
 `.trim();
 
+// Broad CONTAINS search to fetch artist name candidates for fuzzy matching
+const FUZZY_ARTIST_CYPHER = `
+MATCH (a:Artist)
+WHERE any(w IN $words WHERE toLower(a.name) CONTAINS w)
+RETURN DISTINCT toLower(a.name) AS name
+LIMIT 500
+`.trim();
+
 type RecRow = {
   id: string; name: string; artist: string;
   danceability: number; valence: number; acousticness: number; energy: number;
   popularity: number; genres: string[]; score: number;
   matchReason: "spotify" | "artist" | "genre" | "audio";
 };
+
+async function resolveArtistNames(
+  session: import("neo4j-driver").Session,
+  inputNames: string[]
+): Promise<string[]> {
+  if (inputNames.length === 0) return [];
+  const lower = inputNames.map(n => n.toLowerCase());
+
+  // Extract meaningful search words (≥3 chars) to query candidates
+  const words = [...new Set(lower.flatMap(n => n.split(/[\s,]+/).filter(w => w.length >= 3)))];
+  if (words.length === 0) return lower;
+
+  const result = await session.executeRead(tx =>
+    tx.run(FUZZY_ARTIST_CYPHER, { words })
+  );
+  const candidates = result.records.map(r => r.get("name") as string);
+  if (candidates.length === 0) return lower;
+
+  const resolved: string[] = [];
+  for (const input of lower) {
+    let best = "";
+    let bestDist = Infinity;
+    const threshold = Math.max(2, Math.floor(input.length * 0.35));
+    for (const c of candidates) {
+      const d = levenshtein(input, c);
+      if (d < bestDist && d <= threshold) { bestDist = d; best = c; }
+    }
+    resolved.push(best || input);
+  }
+  return [...new Set(resolved)];
+}
 
 function mapRec(r: import("neo4j-driver").Record): RecRow {
   return {
@@ -261,6 +315,12 @@ export async function POST(req: Request) {
         recommendations,
         aiArtists: tasteProfile.artists,
       });
+    } catch (err: unknown) {
+      console.error("recommend describe error:", err);
+      return NextResponse.json(
+        { error: "SERVER_ERROR", message: "Something went wrong. Please try again." },
+        { status: 500 }
+      );
     } finally {
       await session.close();
     }
@@ -272,8 +332,11 @@ export async function POST(req: Request) {
   const session  = driver.session({ database, defaultAccessMode: "READ" });
 
   try {
+    // Fuzzy-resolve artist names so typos still find the right artist
+    const resolvedArtistNames = await resolveArtistNames(session, allArtistNames);
+
     const profileResult = await session.executeRead(tx =>
-      tx.run(PROFILE_CYPHER, { trackNames: allTrackNames, artistNames: allArtistNames })
+      tx.run(PROFILE_CYPHER, { trackNames: allTrackNames, artistNames: resolvedArtistNames })
     );
 
     if (profileResult.records.length === 0) {
@@ -309,7 +372,7 @@ export async function POST(req: Request) {
     const artistResult = await session.executeRead(tx =>
       tx.run(
         "MATCH (a:Artist) WHERE toLower(a.name) IN $names RETURN DISTINCT toLower(a.name) AS name",
-        { names: allArtistNames }
+        { names: resolvedArtistNames }
       )
     );
     const knownArtists = artistResult.records.map(r => r.get("name") as string);
@@ -371,6 +434,12 @@ export async function POST(req: Request) {
       },
       recommendations,
     });
+  } catch (err: unknown) {
+    console.error("recommend error:", err);
+    return NextResponse.json(
+      { error: "SERVER_ERROR", message: "Something went wrong. Please try again." },
+      { status: 500 }
+    );
   } finally {
     await session.close();
   }
