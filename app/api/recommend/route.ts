@@ -228,7 +228,7 @@ export async function POST(req: Request) {
   const allArtistNames = [...new Set([...sourceArtistNames, ...manualArtists.map(a => a.toLowerCase())])];
   const allTrackNames  = [...new Set([...sourceTrackNames,  ...manualTracks.map(t => t.toLowerCase())])];
 
-  if (allArtistNames.length === 0 && allTrackNames.length === 0) {
+  if (allArtistNames.length === 0 && allTrackNames.length === 0 && !description) {
     return NextResponse.json({
       error: "NEEDS_MANUAL_INPUT",
       message: "Enter some artists or track names to get recommendations.",
