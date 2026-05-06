@@ -3,6 +3,7 @@ import { z } from "zod";
 import { isInt } from "neo4j-driver";
 import type { Integer } from "neo4j-driver";
 import { parsePlaylistId, scrapePublicPlaylist } from "@/lib/spotify";
+import { analyzeMusicTaste } from "@/lib/gemini";
 import { getDriver } from "@/lib/neo4j";
 import { checkRateLimit, getIP } from "@/lib/rateLimit";
 
@@ -10,11 +11,12 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const BodySchema = z.object({
-  url:     z.string().min(1).max(500).optional(),
-  artists: z.array(z.string().min(1).max(100)).max(20).optional(),
-  tracks:  z.array(z.string().min(1).max(200)).max(30).optional(),
-}).refine(d => d.url || (d.artists?.length ?? 0) > 0 || (d.tracks?.length ?? 0) > 0, {
-  message: "Provide a Spotify playlist URL or at least one artist/track name.",
+  url:         z.string().min(1).max(500).optional(),
+  artists:     z.array(z.string().min(1).max(100)).max(20).optional(),
+  tracks:      z.array(z.string().min(1).max(200)).max(30).optional(),
+  description: z.string().min(1).max(1000).optional(),
+}).refine(d => d.url || (d.artists?.length ?? 0) > 0 || (d.tracks?.length ?? 0) > 0 || d.description, {
+  message: "Provide a Spotify playlist URL, artist names, or a description of your taste.",
 });
 
 function coerceNum(v: unknown): number {
@@ -129,7 +131,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Bad request." }, { status: 400 });
   }
 
-  const { url, artists: manualArtists = [], tracks: manualTracks = [] } = parsed.data;
+  const { url, artists: manualArtists = [], tracks: manualTracks = [], description } = parsed.data;
 
   // ── Step 1: resolve track/artist names ─────────────────────────────────────
   let playlistName = "Custom mix";
@@ -177,6 +179,91 @@ export async function POST(req: Request) {
       error: "NEEDS_MANUAL_INPUT",
       message: "Enter some artists or track names to get recommendations.",
     }, { status: 422 });
+  }
+
+  // ── Step 1b: description → Groq → audio profile (skips PROFILE_CYPHER) ──────
+  if (description) {
+    let tasteProfile;
+    try {
+      tasteProfile = await analyzeMusicTaste(description);
+    } catch (e: unknown) {
+      const msg = (e as Error).message ?? "";
+      if (msg === "GROQ_NOT_CONFIGURED") {
+        return NextResponse.json({ error: "GROQ_NOT_CONFIGURED", message: "Groq API key is not configured on this server." }, { status: 503 });
+      }
+      return NextResponse.json({ error: "GROQ_ERROR", message: "Failed to analyse your description. Try rephrasing it." }, { status: 502 });
+    }
+
+    const driver   = getDriver();
+    const database = process.env.NEO4J_DATABASE ?? "neo4j";
+    const session  = driver.session({ database, defaultAccessMode: "READ" });
+
+    try {
+      const lowerArtists = tasteProfile.artists.map(a => a.toLowerCase());
+      const artistResult = await session.executeRead(tx =>
+        tx.run(
+          "MATCH (a:Artist) WHERE toLower(a.name) IN $names RETURN DISTINCT toLower(a.name) AS name",
+          { names: lowerArtists }
+        )
+      );
+      const knownArtists = artistResult.records.map(r => r.get("name") as string);
+      const knownGenres  = tasteProfile.genres.map(g => g.toLowerCase());
+
+      const fillResult = await session.executeRead(tx =>
+        tx.run(FILL_CYPHER, {
+          excludeIds:   [],
+          fillCount:    TOTAL_RECS,
+          minDance:     Math.max(0, tasteProfile.danceability - FEATURE_TOLERANCE),
+          maxDance:     Math.min(1, tasteProfile.danceability + FEATURE_TOLERANCE),
+          minValence:   Math.max(0, tasteProfile.valence      - FEATURE_TOLERANCE),
+          maxValence:   Math.min(1, tasteProfile.valence      + FEATURE_TOLERANCE),
+          minAcoustic:  Math.max(0, tasteProfile.acousticness - FEATURE_TOLERANCE),
+          maxAcoustic:  Math.min(1, tasteProfile.acousticness + FEATURE_TOLERANCE),
+          minEnergy:    Math.max(0, tasteProfile.energy       - FEATURE_TOLERANCE),
+          maxEnergy:    Math.min(1, tasteProfile.energy       + FEATURE_TOLERANCE),
+          avgDance:     tasteProfile.danceability,
+          avgValence:   tasteProfile.valence,
+          avgAcoustic:  tasteProfile.acousticness,
+          avgEnergy:    tasteProfile.energy,
+          knownArtists,
+          knownGenres,
+        })
+      );
+
+      const recommendations = fillResult.records.map(mapRec);
+
+      return NextResponse.json({
+        playlist: {
+          id:         "ai",
+          name:       tasteProfile.playlistName,
+          owner:      "Groq AI",
+          trackCount: recommendations.length,
+          imageUrl:   null,
+        },
+        profile: {
+          avgDanceability: r2(tasteProfile.danceability),
+          avgEnergy:       r2(tasteProfile.energy),
+          avgValence:      r2(tasteProfile.valence),
+          avgAcousticness: r2(tasteProfile.acousticness),
+          avgTempo:        Math.round(tasteProfile.tempo),
+          topGenres:       knownGenres.slice(0, 6),
+          profileSource:   "playlist" as const,
+        },
+        matchStats: {
+          total:             recommendations.length,
+          directMatches:     0,
+          spotifyPicksFound: 0,
+          fillCount:         recommendations.length,
+          knownArtists:      knownArtists.length,
+          coveragePercent:   0,
+          fallbackLevel:     knownArtists.length > 0 ? "artist" : knownGenres.length > 0 ? "genre" : "audio",
+        },
+        recommendations,
+        aiArtists: tasteProfile.artists,
+      });
+    } finally {
+      await session.close();
+    }
   }
 
   // ── Step 2: Neo4j — build taste profile ────────────────────────────────────

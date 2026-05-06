@@ -185,6 +185,83 @@ async function generateCypherGemini(opts: {
   return { cypher: parsed.cypher, rationale: parsed.rationale };
 }
 
+// ── Music taste analysis ──────────────────────────────────────────────────────
+
+const TASTE_SYSTEM = `
+You are a music taste analyzer for a Spotify recommendation engine backed by a Neo4j graph.
+Given any natural language description of music preferences, moods, activities, or feelings,
+extract structured music data.
+
+Audio features are all on a 0.0–1.0 scale:
+- danceability: 0=not danceable, 1=very danceable
+- energy: 0=calm/quiet, 1=loud/intense
+- valence: 0=sad/dark/angry, 1=happy/cheerful/euphoric
+- acousticness: 0=fully electronic, 1=fully acoustic
+- tempo: BPM integer (typical range 60–200)
+
+Respond ONLY with a valid JSON object — no markdown, no explanation:
+{
+  "artists": ["up to 10 real well-known artist names whose style fits best"],
+  "genres": ["up to 8 lowercase genre tags"],
+  "danceability": <float 0.0–1.0>,
+  "energy": <float 0.0–1.0>,
+  "valence": <float 0.0–1.0>,
+  "acousticness": <float 0.0–1.0>,
+  "tempo": <integer BPM>,
+  "playlistName": "<short evocative name for this vibe, 2–5 words>"
+}
+`.trim();
+
+export interface MusicTasteProfile {
+  artists: string[];
+  genres: string[];
+  danceability: number;
+  energy: number;
+  valence: number;
+  acousticness: number;
+  tempo: number;
+  playlistName: string;
+}
+
+export async function analyzeMusicTaste(description: string): Promise<MusicTasteProfile> {
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey) throw new Error("GROQ_NOT_CONFIGURED");
+
+  const client = new OpenAI({ apiKey, baseURL: GROQ_BASE_URL });
+  const response = await client.chat.completions.create({
+    model: process.env.GROQ_MODEL ?? DEFAULT_MODEL,
+    messages: [
+      { role: "system", content: TASTE_SYSTEM },
+      { role: "user",   content: description },
+    ],
+    response_format: { type: "json_object" },
+    temperature: 0.3,
+    max_tokens: 400,
+  });
+
+  const text = response.choices[0]?.message?.content ?? "";
+  let parsed: MusicTasteProfile;
+  try {
+    parsed = JSON.parse(text) as MusicTasteProfile;
+  } catch {
+    throw new Error(`Groq returned non-JSON: ${text.slice(0, 200)}`);
+  }
+
+  // Clamp floats to valid range
+  const clamp = (n: unknown, lo = 0, hi = 1) =>
+    Math.min(hi, Math.max(lo, typeof n === "number" ? n : 0.5));
+  return {
+    artists:      Array.isArray(parsed.artists)  ? parsed.artists.filter(a => typeof a === "string")  : [],
+    genres:       Array.isArray(parsed.genres)   ? parsed.genres.filter(g => typeof g === "string")   : [],
+    danceability: clamp(parsed.danceability),
+    energy:       clamp(parsed.energy),
+    valence:      clamp(parsed.valence),
+    acousticness: clamp(parsed.acousticness),
+    tempo:        clamp(parsed.tempo, 40, 250),
+    playlistName: typeof parsed.playlistName === "string" ? parsed.playlistName : "My Mix",
+  };
+}
+
 export async function generateCypherWithProvider(opts: {
   question: string;
   apiKey: string;

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useRef } from "react";
-import { Music2, Sparkles, ArrowRight, ListMusic, Users, Wand2, Play, ChevronUp, Mic2 } from "lucide-react";
+import { Music2, Sparkles, ArrowRight, ListMusic, Users, Wand2, Play, ChevronUp, Mic2, MessageSquare, Link2 } from "lucide-react";
 import { clsx } from "clsx";
 import { PageTabs } from "@/components/assignment/PageTabs";
 
@@ -54,6 +54,7 @@ interface RecommendResult {
   profile: Profile;
   matchStats: MatchStats;
   recommendations: Recommendation[];
+  aiArtists?: string[];
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -102,13 +103,15 @@ function GenrePill({ genre }: { genre: string }) {
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function RecommendPage() {
-  const [url, setUrl]           = useState("");
+  const [inputMode, setInputMode]     = useState<"url" | "describe">("url");
+  const [url, setUrl]                 = useState("");
   const [artistInput, setArtistInput] = useState("");
-  const [status, setStatus]     = useState<"idle" | "loading" | "success" | "error" | "needs_manual">("idle");
-  const [result, setResult]     = useState<RecommendResult | null>(null);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [playingId, setPlayingId] = useState<string | null>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const [description, setDescription] = useState("");
+  const [status, setStatus]           = useState<"idle" | "loading" | "success" | "error" | "needs_manual">("idle");
+  const [result, setResult]           = useState<RecommendResult | null>(null);
+  const [errorMsg, setErrorMsg]       = useState<string | null>(null);
+  const [playingId, setPlayingId]     = useState<string | null>(null);
+  const inputRef  = useRef<HTMLInputElement>(null);
   const artistRef = useRef<HTMLInputElement>(null);
 
   const submit = useCallback(async (body: Record<string, unknown>) => {
@@ -148,15 +151,23 @@ export default function RecommendPage() {
     submit({ url: trimmed });
   }, [url, submit]);
 
+  const handleDescribeSubmit = useCallback((e?: React.FormEvent) => {
+    e?.preventDefault();
+    const trimmed = description.trim();
+    if (!trimmed) return;
+    submit({ description: trimmed });
+  }, [description, submit]);
+
   const handleManualSubmit = useCallback((e?: React.FormEvent) => {
     e?.preventDefault();
-    const artists = artistInput
-      .split(",")
-      .map(s => s.trim())
-      .filter(Boolean);
+    const artists = artistInput.split(",").map(s => s.trim()).filter(Boolean);
     if (artists.length === 0) return;
     submit({ artists, url: url.trim() || undefined });
   }, [artistInput, url, submit]);
+
+  const resetToIdle = () => {
+    setStatus("idle"); setResult(null); setUrl(""); setArtistInput(""); setDescription(""); setErrorMsg(null);
+  };
 
   return (
     <div className="flex flex-col min-h-screen bg-[#0F172A] text-[#F8FAFC]">
@@ -180,7 +191,7 @@ export default function RecommendPage() {
       <main className="flex-1 overflow-y-auto">
         <div className="max-w-5xl mx-auto px-4 py-8">
 
-          {/* ── URL form (idle / error) ── */}
+          {/* ── Input form (idle / error) ── */}
           {(status === "idle" || status === "error") && (
             <div className="flex flex-col items-center text-center gap-6 py-8 sm:py-14">
               <div className="w-16 h-16 rounded-2xl bg-[#22C55E]/15 flex items-center justify-center">
@@ -189,52 +200,114 @@ export default function RecommendPage() {
               <div className="max-w-lg">
                 <h2 className="text-2xl font-bold tracking-tight mb-2">Playlist recommender</h2>
                 <p className="text-[#94A3B8] text-[15px] leading-relaxed">
-                  Paste any public Spotify playlist. We'll analyse its sound profile and find
-                  15 tracks from our graph that match your taste.
+                  Paste a Spotify playlist or describe your taste — we'll find 15 tracks from our graph that match your vibe.
                 </p>
               </div>
 
-              <form onSubmit={handleUrlSubmit} className="w-full max-w-xl flex flex-col gap-3">
-                <div className="flex gap-2">
-                  <input
-                    ref={inputRef}
-                    type="url"
-                    value={url}
-                    onChange={(e) => setUrl(e.target.value)}
-                    placeholder="https://open.spotify.com/playlist/…"
+              {/* Mode tabs */}
+              <div className="flex gap-1 p-1 bg-[#0B1120] border border-[#1E293B] rounded-xl w-full max-w-xl">
+                <button
+                  onClick={() => { setInputMode("url"); setErrorMsg(null); }}
+                  className={clsx(
+                    "flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-colors",
+                    inputMode === "url"
+                      ? "bg-[#22C55E]/15 text-[#22C55E]"
+                      : "text-[#64748b] hover:text-[#94A3B8]"
+                  )}
+                >
+                  <Link2 size={14} />
+                  Spotify URL
+                </button>
+                <button
+                  onClick={() => { setInputMode("describe"); setErrorMsg(null); }}
+                  className={clsx(
+                    "flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-colors",
+                    inputMode === "describe"
+                      ? "bg-[#A78BFA]/15 text-[#A78BFA]"
+                      : "text-[#64748b] hover:text-[#94A3B8]"
+                  )}
+                >
+                  <MessageSquare size={14} />
+                  Describe your taste
+                </button>
+              </div>
+
+              {/* URL input */}
+              {inputMode === "url" && (
+                <form onSubmit={handleUrlSubmit} className="w-full max-w-xl flex flex-col gap-3">
+                  <div className="flex gap-2">
+                    <input
+                      ref={inputRef}
+                      type="url"
+                      value={url}
+                      onChange={(e) => setUrl(e.target.value)}
+                      placeholder="https://open.spotify.com/playlist/…"
+                      className={clsx(
+                        "flex-1 px-4 py-3 rounded-xl text-sm bg-[#0B1120] border text-[#F8FAFC] placeholder-[#475569]",
+                        "focus:outline-none focus:ring-2 focus:ring-[#22C55E]",
+                        status === "error" ? "border-red-500/60" : "border-[#334155]"
+                      )}
+                    />
+                    <button
+                      type="submit"
+                      disabled={!url.trim()}
+                      className="shrink-0 flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-medium bg-[#22C55E] hover:bg-[#16A34A] text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                    >
+                      <ArrowRight size={16} />
+                      <span className="hidden sm:inline">Analyse</span>
+                    </button>
+                  </div>
+                  {status === "error" && errorMsg && (
+                    <p className="text-sm text-red-400 text-left">{errorMsg}</p>
+                  )}
+                </form>
+              )}
+
+              {/* Describe input */}
+              {inputMode === "describe" && (
+                <form onSubmit={handleDescribeSubmit} className="w-full max-w-xl flex flex-col gap-3">
+                  <textarea
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    rows={4}
+                    maxLength={1000}
+                    placeholder={`Describe the vibe you're after — e.g.\n"Late night driving, melancholic but not too slow, like The Weeknd or Frank Ocean"\n"Happy summer energy, danceable, feel-good pop"\n"Dark hip-hop with heavy bass and introspective lyrics"`}
                     className={clsx(
-                      "flex-1 px-4 py-3 rounded-xl text-sm bg-[#0B1120] border text-[#F8FAFC] placeholder-[#475569]",
-                      "focus:outline-none focus:ring-2 focus:ring-[#22C55E]",
+                      "w-full px-4 py-3 rounded-xl text-sm bg-[#0B1120] border text-[#F8FAFC] placeholder-[#475569] resize-none",
+                      "focus:outline-none focus:ring-2 focus:ring-[#A78BFA]",
                       status === "error" ? "border-red-500/60" : "border-[#334155]"
                     )}
                   />
-                  <button
-                    type="submit"
-                    disabled={!url.trim()}
-                    className={clsx(
-                      "shrink-0 flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-medium transition-colors",
-                      "bg-[#22C55E] hover:bg-[#16A34A] text-white",
-                      "disabled:opacity-40 disabled:cursor-not-allowed"
-                    )}
-                  >
-                    <ArrowRight size={16} />
-                    <span className="hidden sm:inline">Analyse</span>
-                  </button>
-                </div>
-                {status === "error" && errorMsg && (
-                  <p className="text-sm text-red-400 text-left">{errorMsg}</p>
-                )}
-              </form>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-[#475569]">{description.length}/1000</span>
+                    <button
+                      type="submit"
+                      disabled={!description.trim()}
+                      className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium bg-[#A78BFA] hover:bg-[#9061f9] text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                    >
+                      <Sparkles size={14} />
+                      Generate playlist
+                    </button>
+                  </div>
+                  {status === "error" && errorMsg && (
+                    <p className="text-sm text-red-400">{errorMsg}</p>
+                  )}
+                </form>
+              )}
 
               {/* How it works */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full max-w-xl mt-2">
-                {[
-                  { icon: <ListMusic size={16} />, title: "Fetch playlist",      body: "We read your public playlist directly from Spotify's web page." },
-                  { icon: <Sparkles   size={16} />, title: "Build taste profile", body: "We match your tracks against the graph to learn your audio preferences." },
-                  { icon: <Music2     size={16} />, title: "Match in the graph",  body: "Neo4j finds 15 tracks that fit your sound — even if yours aren't in the DB." },
+                {inputMode === "url" ? [
+                  { icon: <ListMusic size={16} />,  color: "#22C55E", title: "Fetch playlist",      body: "We read your public playlist directly from Spotify's web page." },
+                  { icon: <Sparkles  size={16} />,  color: "#22C55E", title: "Build taste profile", body: "We match your tracks against the graph to learn your audio preferences." },
+                  { icon: <Music2    size={16} />,  color: "#22C55E", title: "Match in the graph",  body: "Neo4j finds 15 tracks that fit your sound — even if yours aren't in the DB." },
+                ] : [
+                  { icon: <MessageSquare size={16} />, color: "#A78BFA", title: "Describe freely",    body: "Tell Groq your mood, activity, or artists you like — in plain English." },
+                  { icon: <Sparkles      size={16} />, color: "#A78BFA", title: "AI decodes your vibe", body: "Groq extracts artists, genres, and audio features from your description." },
+                  { icon: <Music2        size={16} />, color: "#A78BFA", title: "Graph builds the mix", body: "Neo4j finds 15 tracks that match the decoded profile." },
                 ].map((s, i) => (
                   <div key={i} className="bg-[#0B1120] border border-[#1E293B] rounded-xl p-4 text-left">
-                    <div className="text-[#22C55E] mb-2">{s.icon}</div>
+                    <div className="mb-2" style={{ color: s.color }}>{s.icon}</div>
                     <p className="text-sm font-semibold text-[#F8FAFC] mb-1">{s.title}</p>
                     <p className="text-xs text-[#64748b] leading-relaxed">{s.body}</p>
                   </div>
@@ -295,12 +368,18 @@ export default function RecommendPage() {
           {status === "loading" && (
             <div className="flex flex-col items-center gap-5 py-24">
               <div className="relative w-14 h-14">
-                <div className="absolute inset-0 rounded-full border-2 border-[#22C55E]/20" />
-                <div className="absolute inset-0 rounded-full border-2 border-t-[#22C55E] animate-spin" />
+                <div className={clsx("absolute inset-0 rounded-full border-2", inputMode === "describe" ? "border-[#A78BFA]/20" : "border-[#22C55E]/20")} />
+                <div className={clsx("absolute inset-0 rounded-full border-2 border-t-transparent animate-spin", inputMode === "describe" ? "border-t-[#A78BFA]" : "border-t-[#22C55E]")} />
               </div>
               <div className="text-center">
-                <p className="text-[#F8FAFC] font-medium">Analysing…</p>
-                <p className="text-xs text-[#64748b] mt-1">Building taste profile · querying graph</p>
+                <p className="text-[#F8FAFC] font-medium">
+                  {inputMode === "describe" ? "Asking Groq…" : "Analysing…"}
+                </p>
+                <p className="text-xs text-[#64748b] mt-1">
+                  {inputMode === "describe"
+                    ? "Decoding your vibe · finding matching tracks in the graph"
+                    : "Building taste profile · querying graph"}
+                </p>
               </div>
             </div>
           )}
@@ -330,7 +409,7 @@ export default function RecommendPage() {
                   </div>
                 </div>
                 <button
-                  onClick={() => { setStatus("idle"); setResult(null); setUrl(""); setArtistInput(""); }}
+                  onClick={resetToIdle}
                   className="shrink-0 text-xs text-[#64748b] hover:text-[#F8FAFC] px-3 py-1.5 rounded-lg border border-[#334155] hover:border-[#475569] transition-colors"
                 >
                   Try another
@@ -363,6 +442,18 @@ export default function RecommendPage() {
                       <div className="flex items-center gap-1.5 mt-2 text-xs text-[#94A3B8]">
                         <Users size={12} className="text-[#22C55E]" />
                         {result.matchStats.knownArtists} artist{result.matchStats.knownArtists !== 1 ? "s" : ""} found in graph
+                      </div>
+                    )}
+                    {result.aiArtists && result.aiArtists.length > 0 && (
+                      <div className="mt-3 pt-3 border-t border-[#1E293B]">
+                        <p className="text-xs text-[#64748b] mb-2">Artists Groq identified</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {result.aiArtists.map(a => (
+                            <span key={a} className="px-2 py-0.5 rounded-full text-[11px] bg-[#A78BFA]/10 text-[#A78BFA] border border-[#A78BFA]/20">
+                              {a}
+                            </span>
+                          ))}
+                        </div>
                       </div>
                     )}
                   </div>
