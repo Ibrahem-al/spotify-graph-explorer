@@ -371,7 +371,7 @@ export async function POST(req: Request) {
     const fillResult = await session.executeRead(tx =>
       tx.run(FILL_CYPHER, {
         excludeIds:   profileIds,
-        fillCount:    TOTAL_RECS,
+        fillCount:    int(TOTAL_RECS),
         minDance:     Math.max(0, avgDance    - FEATURE_TOLERANCE),
         maxDance:     Math.min(1, avgDance    + FEATURE_TOLERANCE),
         minValence:   Math.max(0, avgValence  - FEATURE_TOLERANCE),
