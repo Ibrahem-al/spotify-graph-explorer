@@ -103,16 +103,22 @@ function GenrePill({ genre }: { genre: string }) {
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function RecommendPage() {
-  const [inputMode, setInputMode]     = useState<"url" | "describe">("url");
+  const [inputMode, setInputMode]     = useState<"url" | "artists" | "describe">("url");
   const [url, setUrl]                 = useState("");
   const [artistInput, setArtistInput] = useState("");
   const [description, setDescription] = useState("");
-  const [status, setStatus]           = useState<"idle" | "loading" | "success" | "error" | "needs_manual">("idle");
+  const [status, setStatus]           = useState<"idle" | "loading" | "success" | "error">("idle");
   const [result, setResult]           = useState<RecommendResult | null>(null);
   const [errorMsg, setErrorMsg]       = useState<string | null>(null);
   const [playingId, setPlayingId]     = useState<string | null>(null);
   const inputRef  = useRef<HTMLInputElement>(null);
   const artistRef = useRef<HTMLInputElement>(null);
+
+  const switchTab = (mode: "url" | "artists" | "describe") => {
+    setInputMode(mode);
+    setErrorMsg(null);
+    if (status === "error") setStatus("idle");
+  };
 
   const submit = useCallback(async (body: Record<string, unknown>) => {
     setStatus("loading");
@@ -126,9 +132,11 @@ export default function RecommendPage() {
       const data = await res.json();
 
       if (!res.ok) {
+        // URL scraping failed — switch to artists tab with a hint
         if (data?.error === "NEEDS_MANUAL_INPUT") {
           setErrorMsg(data.message ?? null);
-          setStatus("needs_manual");
+          setInputMode("artists");
+          setStatus("error");
           return;
         }
         setErrorMsg(data?.message ?? "Something went wrong. Try again.");
@@ -151,19 +159,19 @@ export default function RecommendPage() {
     submit({ url: trimmed });
   }, [url, submit]);
 
+  const handleArtistSubmit = useCallback((e?: React.FormEvent) => {
+    e?.preventDefault();
+    const artists = artistInput.split(",").map(s => s.trim()).filter(Boolean);
+    if (artists.length === 0) return;
+    submit({ artists });
+  }, [artistInput, submit]);
+
   const handleDescribeSubmit = useCallback((e?: React.FormEvent) => {
     e?.preventDefault();
     const trimmed = description.trim();
     if (!trimmed) return;
     submit({ description: trimmed });
   }, [description, submit]);
-
-  const handleManualSubmit = useCallback((e?: React.FormEvent) => {
-    e?.preventDefault();
-    const artists = artistInput.split(",").map(s => s.trim()).filter(Boolean);
-    if (artists.length === 0) return;
-    submit({ artists, url: url.trim() || undefined });
-  }, [artistInput, url, submit]);
 
   const resetToIdle = () => {
     setStatus("idle"); setResult(null); setUrl(""); setArtistInput(""); setDescription(""); setErrorMsg(null);
@@ -200,39 +208,33 @@ export default function RecommendPage() {
               <div className="max-w-lg">
                 <h2 className="text-2xl font-bold tracking-tight mb-2">Playlist recommender</h2>
                 <p className="text-[#94A3B8] text-[15px] leading-relaxed">
-                  Paste a Spotify playlist or describe your taste — we'll find 15 tracks from our graph that match your vibe.
+                  Three ways to get recommendations — pick whichever suits you.
                 </p>
               </div>
 
-              {/* Mode tabs */}
+              {/* ── Three tabs ── */}
               <div className="flex gap-1 p-1 bg-[#0B1120] border border-[#1E293B] rounded-xl w-full max-w-xl">
-                <button
-                  onClick={() => { setInputMode("url"); setErrorMsg(null); }}
-                  className={clsx(
-                    "flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-colors",
-                    inputMode === "url"
-                      ? "bg-[#22C55E]/15 text-[#22C55E]"
-                      : "text-[#64748b] hover:text-[#94A3B8]"
-                  )}
-                >
-                  <Link2 size={14} />
-                  Spotify URL
-                </button>
-                <button
-                  onClick={() => { setInputMode("describe"); setErrorMsg(null); }}
-                  className={clsx(
-                    "flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-colors",
-                    inputMode === "describe"
-                      ? "bg-[#A78BFA]/15 text-[#A78BFA]"
-                      : "text-[#64748b] hover:text-[#94A3B8]"
-                  )}
-                >
-                  <MessageSquare size={14} />
-                  Describe your taste
-                </button>
+                {([
+                  { mode: "url",      label: "Spotify URL",        icon: <Link2         size={13} />, active: "bg-[#22C55E]/15 text-[#22C55E]" },
+                  { mode: "artists",  label: "Enter artists",      icon: <Mic2          size={13} />, active: "bg-[#F472B6]/15 text-[#F472B6]" },
+                  { mode: "describe", label: "Describe your taste", icon: <MessageSquare size={13} />, active: "bg-[#A78BFA]/15 text-[#A78BFA]" },
+                ] as const).map(t => (
+                  <button
+                    key={t.mode}
+                    onClick={() => switchTab(t.mode)}
+                    className={clsx(
+                      "flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-medium transition-colors",
+                      inputMode === t.mode ? t.active : "text-[#64748b] hover:text-[#94A3B8]"
+                    )}
+                  >
+                    {t.icon}
+                    <span className="hidden sm:inline">{t.label}</span>
+                    <span className="sm:hidden">{t.label.split(" ")[0]}</span>
+                  </button>
+                ))}
               </div>
 
-              {/* URL input */}
+              {/* ── URL tab ── */}
               {inputMode === "url" && (
                 <form onSubmit={handleUrlSubmit} className="w-full max-w-xl flex flex-col gap-3">
                   <div className="flex gap-2">
@@ -248,13 +250,9 @@ export default function RecommendPage() {
                         status === "error" ? "border-red-500/60" : "border-[#334155]"
                       )}
                     />
-                    <button
-                      type="submit"
-                      disabled={!url.trim()}
-                      className="shrink-0 flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-medium bg-[#22C55E] hover:bg-[#16A34A] text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                    >
-                      <ArrowRight size={16} />
-                      <span className="hidden sm:inline">Analyse</span>
+                    <button type="submit" disabled={!url.trim()}
+                      className="shrink-0 flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-medium bg-[#22C55E] hover:bg-[#16A34A] text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+                      <ArrowRight size={16} /><span className="hidden sm:inline">Analyse</span>
                     </button>
                   </div>
                   {status === "error" && errorMsg && (
@@ -263,7 +261,31 @@ export default function RecommendPage() {
                 </form>
               )}
 
-              {/* Describe input */}
+              {/* ── Artists tab ── */}
+              {inputMode === "artists" && (
+                <form onSubmit={handleArtistSubmit} className="w-full max-w-xl flex flex-col gap-3">
+                  {status === "error" && errorMsg && (
+                    <p className="text-sm text-amber-400 text-left bg-amber-400/10 border border-amber-400/20 rounded-lg px-3 py-2">{errorMsg}</p>
+                  )}
+                  <div className="flex gap-2">
+                    <input
+                      ref={artistRef}
+                      type="text"
+                      value={artistInput}
+                      onChange={(e) => setArtistInput(e.target.value)}
+                      placeholder="e.g. Drake, The Weeknd, SZA, Kendrick Lamar"
+                      className="flex-1 px-4 py-3 rounded-xl text-sm bg-[#0B1120] border border-[#334155] text-[#F8FAFC] placeholder-[#475569] focus:outline-none focus:ring-2 focus:ring-[#F472B6]"
+                    />
+                    <button type="submit" disabled={!artistInput.trim()}
+                      className="shrink-0 flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-medium bg-[#F472B6] hover:bg-[#EC4899] text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+                      <ArrowRight size={16} /><span className="hidden sm:inline">Find</span>
+                    </button>
+                  </div>
+                  <p className="text-xs text-[#475569] text-left">Separate artists with commas. The more you add, the better the profile.</p>
+                </form>
+              )}
+
+              {/* ── Describe tab ── */}
               {inputMode === "describe" && (
                 <form onSubmit={handleDescribeSubmit} className="w-full max-w-xl flex flex-col gap-3">
                   <textarea
@@ -271,7 +293,7 @@ export default function RecommendPage() {
                     onChange={(e) => setDescription(e.target.value)}
                     rows={4}
                     maxLength={1000}
-                    placeholder={`Describe the vibe you're after — e.g.\n"Late night driving, melancholic but not too slow, like The Weeknd or Frank Ocean"\n"Happy summer energy, danceable, feel-good pop"\n"Dark hip-hop with heavy bass and introspective lyrics"`}
+                    placeholder={"Describe the vibe you're after — e.g.\n\"Late night driving, melancholic but not too slow, like The Weeknd\"\n\"Happy summer energy, danceable, feel-good pop\"\n\"Dark hip-hop with heavy bass and introspective lyrics\""}
                     className={clsx(
                       "w-full px-4 py-3 rounded-xl text-sm bg-[#0B1120] border text-[#F8FAFC] placeholder-[#475569] resize-none",
                       "focus:outline-none focus:ring-2 focus:ring-[#A78BFA]",
@@ -280,13 +302,9 @@ export default function RecommendPage() {
                   />
                   <div className="flex items-center justify-between">
                     <span className="text-xs text-[#475569]">{description.length}/1000</span>
-                    <button
-                      type="submit"
-                      disabled={!description.trim()}
-                      className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium bg-[#A78BFA] hover:bg-[#9061f9] text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                    >
-                      <Sparkles size={14} />
-                      Generate playlist
+                    <button type="submit" disabled={!description.trim()}
+                      className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium bg-[#A78BFA] hover:bg-[#9061f9] text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+                      <Sparkles size={14} />Generate playlist
                     </button>
                   </div>
                   {status === "error" && errorMsg && (
@@ -295,17 +313,21 @@ export default function RecommendPage() {
                 </form>
               )}
 
-              {/* How it works */}
+              {/* How it works cards */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full max-w-xl mt-2">
-                {inputMode === "url" ? [
-                  { icon: <ListMusic size={16} />,  color: "#22C55E", title: "Fetch playlist",      body: "We read your public playlist directly from Spotify's web page." },
-                  { icon: <Sparkles  size={16} />,  color: "#22C55E", title: "Build taste profile", body: "We match your tracks against the graph to learn your audio preferences." },
-                  { icon: <Music2    size={16} />,  color: "#22C55E", title: "Match in the graph",  body: "Neo4j finds 15 tracks that fit your sound — even if yours aren't in the DB." },
+                {(inputMode === "url" ? [
+                  { icon: <ListMusic size={16} />,     color: "#22C55E", title: "Fetch playlist",       body: "We read your public playlist directly from Spotify's web page." },
+                  { icon: <Sparkles  size={16} />,     color: "#22C55E", title: "Build taste profile",  body: "We match your tracks against the graph to learn your audio preferences." },
+                  { icon: <Music2    size={16} />,     color: "#22C55E", title: "Match in the graph",   body: "Neo4j finds 15 tracks that fit your sound." },
+                ] : inputMode === "artists" ? [
+                  { icon: <Mic2     size={16} />,      color: "#F472B6", title: "Name your artists",    body: "Enter a few artists you already love, separated by commas." },
+                  { icon: <Sparkles size={16} />,      color: "#F472B6", title: "Build audio profile",  body: "We find those artists in the graph and average their audio features." },
+                  { icon: <Music2   size={16} />,      color: "#F472B6", title: "Match in the graph",   body: "Neo4j finds 15 tracks with a similar sound." },
                 ] : [
-                  { icon: <MessageSquare size={16} />, color: "#A78BFA", title: "Describe freely",    body: "Tell Groq your mood, activity, or artists you like — in plain English." },
-                  { icon: <Sparkles      size={16} />, color: "#A78BFA", title: "AI decodes your vibe", body: "Groq extracts artists, genres, and audio features from your description." },
+                  { icon: <MessageSquare size={16} />, color: "#A78BFA", title: "Describe freely",      body: "Tell Groq your mood, activity, or artists you like — plain English." },
+                  { icon: <Sparkles      size={16} />, color: "#A78BFA", title: "AI decodes your vibe", body: "Groq extracts artists, genres, and audio features from your words." },
                   { icon: <Music2        size={16} />, color: "#A78BFA", title: "Graph builds the mix", body: "Neo4j finds 15 tracks that match the decoded profile." },
-                ].map((s, i) => (
+                ]).map((s, i) => (
                   <div key={i} className="bg-[#0B1120] border border-[#1E293B] rounded-xl p-4 text-left">
                     <div className="mb-2" style={{ color: s.color }}>{s.icon}</div>
                     <p className="text-sm font-semibold text-[#F8FAFC] mb-1">{s.title}</p>
@@ -316,60 +338,18 @@ export default function RecommendPage() {
             </div>
           )}
 
-          {/* ── Manual fallback ── */}
-          {status === "needs_manual" && (
-            <div className="flex flex-col items-center text-center gap-6 py-8 sm:py-14">
-              <div className="w-16 h-16 rounded-2xl bg-[#F472B6]/15 flex items-center justify-center">
-                <Mic2 className="text-[#F472B6]" size={28} />
-              </div>
-              <div className="max-w-lg">
-                <h2 className="text-2xl font-bold tracking-tight mb-2">Tell us your taste</h2>
-                <p className="text-[#94A3B8] text-[15px] leading-relaxed">
-                  {errorMsg ?? "We couldn't read that playlist automatically. Enter some artists you like and we'll find tracks that match your vibe."}
-                </p>
-              </div>
-
-              <form onSubmit={handleManualSubmit} className="w-full max-w-xl flex flex-col gap-3">
-                <div className="flex gap-2">
-                  <input
-                    ref={artistRef}
-                    type="text"
-                    value={artistInput}
-                    onChange={(e) => setArtistInput(e.target.value)}
-                    placeholder="e.g. Drake, The Weeknd, SZA, Kendrick Lamar"
-                    className="flex-1 px-4 py-3 rounded-xl text-sm bg-[#0B1120] border border-[#334155] text-[#F8FAFC] placeholder-[#475569] focus:outline-none focus:ring-2 focus:ring-[#F472B6]"
-                  />
-                  <button
-                    type="submit"
-                    disabled={!artistInput.trim()}
-                    className={clsx(
-                      "shrink-0 flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-medium transition-colors",
-                      "bg-[#F472B6] hover:bg-[#EC4899] text-white",
-                      "disabled:opacity-40 disabled:cursor-not-allowed"
-                    )}
-                  >
-                    <ArrowRight size={16} />
-                    <span className="hidden sm:inline">Find</span>
-                  </button>
-                </div>
-                <p className="text-xs text-[#475569] text-left">Separate artists with commas. The more you add, the better the profile.</p>
-              </form>
-
-              <button
-                onClick={() => { setStatus("idle"); setErrorMsg(null); }}
-                className="text-xs text-[#475569] hover:text-[#94A3B8] underline underline-offset-2"
-              >
-                ← Try a different playlist URL
-              </button>
-            </div>
-          )}
-
           {/* ── Loading ── */}
           {status === "loading" && (
             <div className="flex flex-col items-center gap-5 py-24">
               <div className="relative w-14 h-14">
-                <div className={clsx("absolute inset-0 rounded-full border-2", inputMode === "describe" ? "border-[#A78BFA]/20" : "border-[#22C55E]/20")} />
-                <div className={clsx("absolute inset-0 rounded-full border-2 border-t-transparent animate-spin", inputMode === "describe" ? "border-t-[#A78BFA]" : "border-t-[#22C55E]")} />
+                <div className={clsx("absolute inset-0 rounded-full border-2",
+                  inputMode === "describe" ? "border-[#A78BFA]/20"
+                  : inputMode === "artists" ? "border-[#F472B6]/20"
+                  : "border-[#22C55E]/20")} />
+                <div className={clsx("absolute inset-0 rounded-full border-2 border-t-transparent animate-spin",
+                  inputMode === "describe" ? "border-t-[#A78BFA]"
+                  : inputMode === "artists" ? "border-t-[#F472B6]"
+                  : "border-t-[#22C55E]")} />
               </div>
               <div className="text-center">
                 <p className="text-[#F8FAFC] font-medium">
