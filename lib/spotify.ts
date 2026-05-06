@@ -31,7 +31,8 @@ export function parsePlaylistId(input: string): string | null {
   const s = input.trim();
   const uri = s.match(/^spotify:playlist:([A-Za-z0-9]+)/);
   if (uri) return uri[1];
-  const url = s.match(/open\.spotify\.com\/playlist\/([A-Za-z0-9]+)/);
+  // Handle locale-prefixed URLs: open.spotify.com/intl-ar/playlist/...
+  const url = s.match(/open\.spotify\.com(?:\/intl-[a-z-]+)?\/playlist\/([A-Za-z0-9]+)/);
   if (url) return url[1];
   if (/^[A-Za-z0-9]{22}$/.test(s)) return s;
   return null;
@@ -68,11 +69,22 @@ export async function fetchPlaylist(playlistId: string): Promise<{
 }> {
   const token = await getAccessToken();
 
-  const infoRes = await fetch(`${SPOTIFY_API_BASE}/playlists/${playlistId}?fields=id,name,owner,images,tracks.total`, {
+  // Fetch without a fields filter — some Spotify playlists return 403 when
+  // specific fields (e.g. owner) are requested while the owner profile is restricted.
+  const infoRes = await fetch(`${SPOTIFY_API_BASE}/playlists/${playlistId}`, {
     headers: { Authorization: `Bearer ${token}` },
   });
   if (infoRes.status === 404) throw new Error("PLAYLIST_NOT_FOUND");
-  if (infoRes.status === 403) throw new Error("PLAYLIST_PRIVATE");
+  if (infoRes.status === 403) {
+    // Read Spotify's error body; if it explicitly says "private" keep that label,
+    // otherwise surface the raw Spotify message so the caller can be more precise.
+    const errBody = await infoRes.json().catch(() => null) as { error?: { message?: string } } | null;
+    const spotifyMsg = errBody?.error?.message ?? "";
+    if (spotifyMsg && !/private|forbidden/i.test(spotifyMsg)) {
+      throw new Error(`PLAYLIST_RESTRICTED:${spotifyMsg}`);
+    }
+    throw new Error("PLAYLIST_PRIVATE");
+  }
   if (!infoRes.ok) throw new Error(`SPOTIFY_ERROR:${infoRes.status}`);
   const info = await infoRes.json();
 
